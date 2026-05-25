@@ -10,12 +10,16 @@ HIDDEN_LAYERS = (64, 32)
 OUTPUT_DIM = 2
 
 DEFAULT_BASE_DIR = Path('data') / 'datasetSujet3' / 'content' / 'dataset'
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_ARTIFACT_DIR = Path(__file__).resolve().parent / 'artifacts'
 DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parent / 'outputs'
+DEFAULT_CONFUSION_MATRIX_PATH = PROJECT_ROOT / 'vis' / 'tfidf_confusion_matrix.png'
 
 
-def load_runtime_dependencies(require_plot=True):
+def load_runtime_dependencies(show_plot=True):
     global plt, np, pd, torch, nn, optim
     global classification_report, confusion_matrix, DataLoader, TensorDataset
+    global accuracy_score, f1_score
     global sns
     global load_datasets, MLPNet
     global RANDOM_SEED, TFIDF_PARAMS
@@ -26,20 +30,25 @@ def load_runtime_dependencies(require_plot=True):
     import torch
     import torch.nn as nn
     import torch.optim as optim
-    from sklearn.metrics import classification_report, confusion_matrix
+    from sklearn.metrics import (
+        accuracy_score,
+        classification_report,
+        confusion_matrix,
+        f1_score,
+    )
     from torch.utils.data import DataLoader, TensorDataset
 
-    if require_plot:
-        import matplotlib.pyplot as plt
-        import numpy as np
+    import matplotlib
 
-        try:
-            import seaborn as sns
-        except ImportError:
-            sns = None
-    else:
-        plt = None
-        np = None
+    if not show_plot:
+        matplotlib.use('Agg')
+
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    try:
+        import seaborn as sns
+    except ImportError:
         sns = None
 
     try:
@@ -84,7 +93,13 @@ def parse_args():
         '--output-dir',
         type=Path,
         default=DEFAULT_OUTPUT_DIR,
-        help='Directory used for saved model, vectorizer, and metrics.',
+        help='Directory used for saved model, vectorizer, and history.',
+    )
+    parser.add_argument(
+        '--artifact-dir',
+        type=Path,
+        default=DEFAULT_ARTIFACT_DIR,
+        help='Directory used for saved evaluation metrics and predictions.',
     )
     parser.add_argument(
         '--model-path',
@@ -103,6 +118,18 @@ def parse_args():
         type=Path,
         default=None,
         help='Path for the saved metrics JSON file.',
+    )
+    parser.add_argument(
+        '--predictions-path',
+        type=Path,
+        default=None,
+        help='Path for the saved test prediction CSV file.',
+    )
+    parser.add_argument(
+        '--confusion-matrix-path',
+        type=Path,
+        default=DEFAULT_CONFUSION_MATRIX_PATH,
+        help='Path for the saved confusion matrix PNG file.',
     )
     parser.add_argument(
         '--history-path',
@@ -206,17 +233,22 @@ def collect_predictions(model, test_loader, device):
     model.eval()
     all_preds = []
     all_labels = []
+    all_confidences = []
 
     with torch.no_grad():
         for features, labels in test_loader:
             logits = model(features.to(device))
-            all_preds.extend(logits.argmax(dim=1).cpu().numpy())
+            probabilities = torch.softmax(logits, dim=1)
+            confidences, preds = probabilities.max(dim=1)
+            all_preds.extend(preds.cpu().numpy())
+            all_confidences.extend(confidences.cpu().numpy())
             all_labels.extend(labels.numpy())
 
-    return all_labels, all_preds
+    return all_labels, all_preds, all_confidences
 
 
 def plot_confusion_matrix(cm, classes):
+    plt.figure()
     if sns is not None:
         sns.heatmap(
             cm,
@@ -238,6 +270,38 @@ def plot_confusion_matrix(cm, classes):
     plt.xlabel('Predicted')
     plt.ylabel('True')
     plt.title('MLP TF-IDF Confusion Matrix')
+    plt.tight_layout()
+
+
+def save_confusion_matrix(cm, classes, path):
+    plot_confusion_matrix(cm, classes)
+    ensure_parent_dir(path)
+    plt.savefig(path, dpi=150, bbox_inches='tight')
+
+
+def build_prediction_rows(test_df, le, all_preds, all_confidences, preview_chars=200):
+    predicted_labels = le.inverse_transform(all_preds)
+
+    return pd.DataFrame({
+        'file_path': test_df['path'].values,
+        'true_label': test_df['label'].values,
+        'predicted_label': predicted_labels,
+        'confidence': all_confidences,
+        'text_preview': (
+            test_df['text']
+            .str.replace(r'\s+', ' ', regex=True)
+            .str.strip()
+            .str[:preview_chars]
+            .values
+        ),
+    })
+
+
+def save_predictions_csv(test_df, le, all_preds, all_confidences, path):
+    predictions_df = build_prediction_rows(test_df, le, all_preds, all_confidences)
+    ensure_parent_dir(path)
+    predictions_df.to_csv(path, index=False, encoding='utf-8')
+    return predictions_df
 
 
 def make_metrics(
@@ -253,6 +317,21 @@ def make_metrics(
     all_preds,
     cm,
 ):
+    report_dict = classification_report(
+        all_labels,
+        all_preds,
+        target_names=le.classes_,
+        output_dict=True,
+    )
+    report_text = classification_report(
+        all_labels,
+        all_preds,
+        target_names=le.classes_,
+    )
+    accuracy = accuracy_score(all_labels, all_preds)
+    macro_f1 = f1_score(all_labels, all_preds, average='macro')
+    weighted_f1 = f1_score(all_labels, all_preds, average='weighted')
+
     return {
         'random_seed': RANDOM_SEED,
         'tfidf_params': TFIDF_PARAMS,
@@ -283,13 +362,12 @@ def make_metrics(
         'history': history_df.to_dict(orient='records'),
         'test': {
             'loss': test_loss,
-            'accuracy': test_acc,
-            'classification_report': classification_report(
-                all_labels,
-                all_preds,
-                target_names=le.classes_,
-                output_dict=True,
-            ),
+            'accuracy': accuracy,
+            'run_epoch_accuracy': test_acc,
+            'macro_f1': macro_f1,
+            'weighted_f1': weighted_f1,
+            'classification_report': report_dict,
+            'classification_report_text': report_text,
             'confusion_matrix': cm,
         },
     }
@@ -314,17 +392,17 @@ def save_checkpoint(model, path, le, tfidf):
 def main():
     args = parse_args()
 
-    load_runtime_dependencies(require_plot=not args.no_show_plot)
+    load_runtime_dependencies(show_plot=not args.no_show_plot)
 
-    if not args.no_show_plot:
-        if sns is not None:
-            sns.set_style("whitegrid")
-        plt.rcParams['figure.figsize'] = (14, 8)
-        plt.rcParams['font.size'] = 10
+    if sns is not None:
+        sns.set_style("whitegrid")
+    plt.rcParams['figure.figsize'] = (14, 8)
+    plt.rcParams['font.size'] = 10
 
     model_path = args.model_path or args.output_dir / 'tfidf_mlp_model.pt'
     vectorizer_path = args.vectorizer_path or args.output_dir / 'tfidf_vectorizer.pkl'
-    metrics_path = args.metrics_path or args.output_dir / 'metrics.json'
+    metrics_path = args.metrics_path or args.artifact_dir / 'metrics.json'
+    predictions_path = args.predictions_path or args.artifact_dir / 'test_predictions.csv'
     history_path = args.history_path or args.output_dir / 'history.csv'
 
     set_random_seed(RANDOM_SEED)
@@ -363,7 +441,7 @@ def main():
     test_loss, test_acc = run_epoch(model, test_loader, criterion, device)
     print(f'Test loss: {test_loss:.4f} | Test accuracy: {test_acc:.4f}')
 
-    all_labels, all_preds = collect_predictions(model, test_loader, device)
+    all_labels, all_preds, all_confidences = collect_predictions(model, test_loader, device)
     print(classification_report(all_labels, all_preds, target_names=le.classes_))
 
     cm = confusion_matrix(all_labels, all_preds)
@@ -384,18 +462,23 @@ def main():
 
     save_checkpoint(model, model_path, le, tfidf)
     save_pickle(tfidf, vectorizer_path)
+    save_predictions_csv(test_df, le, all_preds, all_confidences, predictions_path)
     save_json(metrics, metrics_path)
     ensure_parent_dir(history_path)
     history_df.to_csv(history_path, index=False)
+    save_confusion_matrix(cm, le.classes_, args.confusion_matrix_path)
 
     print(f'Saved model: {model_path}')
     print(f'Saved vectorizer: {vectorizer_path}')
+    print(f'Saved predictions: {predictions_path}')
     print(f'Saved metrics: {metrics_path}')
     print(f'Saved history: {history_path}')
+    print(f'Saved confusion matrix: {args.confusion_matrix_path}')
 
     if not args.no_show_plot:
-        plot_confusion_matrix(cm, le.classes_)
         plt.show()
+    else:
+        plt.close('all')
 
 
 if __name__ == '__main__':
