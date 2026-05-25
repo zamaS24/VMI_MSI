@@ -1,0 +1,136 @@
+{
+  "random_seed": 42,
+  "tfidf_params": {
+    "max_features": 40000,
+    "min_df": 2,
+    "max_df": 0.85,
+    "ngram_range": [
+      1,
+      1
+    ]
+  },
+  "model": {
+    "input_dim": 40000,
+    "hidden_layers": [
+      64,
+      32
+    ],
+    "output_dim": 2
+  },
+  "training": {
+    "batch_size": 16,
+    "epochs": 5,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001
+  },
+  "class_mapping": {
+    "femme": 0,
+    "homme": 1
+  },
+  "dataset": {
+    "train_size": 852,
+    "val_size": 284,
+    "test_size": 285,
+    "train_distribution": {
+      "femme": 492,
+      "homme": 360
+    },
+    "val_distribution": {
+      "femme": 164,
+      "homme": 120
+    },
+    "test_distribution": {
+      "femme": 165,
+      "homme": 120
+    }
+  },
+  "features": {
+    "x_train_shape": [
+      852,
+      40000
+    ],
+    "vocabulary_size": 40000
+  },
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.6726834751630613,
+      "train_acc": 0.5727699530516432,
+      "val_loss": 0.628481558510955,
+      "val_acc": 0.7323943661971831
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.4927258422257195,
+      "train_acc": 0.8392018779342723,
+      "val_loss": 0.3937222424527289,
+      "val_acc": 0.8380281690140845
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.1580454033795097,
+      "train_acc": 0.9730046948356808,
+      "val_loss": 0.4198718843325763,
+      "val_acc": 0.8345070422535211
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.0364910668383042,
+      "train_acc": 0.9988262910798122,
+      "val_loss": 0.3496719151735306,
+      "val_acc": 0.8485915492957746
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.01355284832181855,
+      "train_acc": 1.0,
+      "val_loss": 0.3556732291381964,
+      "val_acc": 0.8415492957746479
+    }
+  ],
+  "test": {
+    "loss": 0.30438507120860253,
+    "accuracy": 0.8596491228070176,
+    "run_epoch_accuracy": 0.8596491228070176,
+    "macro_f1": 0.8550061050061051,
+    "weighted_f1": 0.8591028854186749,
+    "classification_report": {
+      "femme": {
+        "precision": 0.8654970760233918,
+        "recall": 0.896969696969697,
+        "f1-score": 0.8809523809523809,
+        "support": 165.0
+      },
+      "homme": {
+        "precision": 0.8508771929824561,
+        "recall": 0.8083333333333333,
+        "f1-score": 0.8290598290598291,
+        "support": 120.0
+      },
+      "accuracy": 0.8596491228070176,
+      "macro avg": {
+        "precision": 0.8581871345029239,
+        "recall": 0.8526515151515152,
+        "f1-score": 0.8550061050061051,
+        "support": 285.0
+      },
+      "weighted avg": {
+        "precision": 0.8593413357956294,
+        "recall": 0.8596491228070176,
+        "f1-score": 0.8591028854186749,
+        "support": 285.0
+      }
+    },
+    "classification_report_text": "              precision    recall  f1-score   support\n\n       femme       0.87      0.90      0.88       165\n       homme       0.85      0.81      0.83       120\n\n    accuracy                           0.86       285\n   macro avg       0.86      0.85      0.86       285\nweighted avg       0.86      0.86      0.86       285\n",
+    "confusion_matrix": [
+      [
+        148,
+        17
+      ],
+      [
+        23,
+        97
+      ]
+    ]
+  }
+}
