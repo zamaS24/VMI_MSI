@@ -13,6 +13,7 @@ BERT_ROOT = Path(__file__).resolve().parent
 LABEL2ID = {"femme": 0, "homme": 1}
 ID2LABEL = {0: "femme", 1: "homme"}
 
+ROOT_COLLAB=PROJECT_ROOT.parent
 
 @dataclass
 class PathConfig:
