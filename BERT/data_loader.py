@@ -119,22 +119,29 @@ def chunk_token_ids(input_ids: list[int], chunk_size: int) -> list[list[int]]:
 
 def chunk_text(text: str, tokenizer: Any, max_length: int = 512) -> list[dict[str, list[int]]]:
     """Tokenize a document into 512-token CamemBERT-ready chunks."""
-    special_tokens = tokenizer.num_special_tokens_to_add(pair=False)
-    payload_size = max_length - special_tokens
-    token_ids = tokenizer(text, add_special_tokens=False)["input_ids"]
+    start_token_id = tokenizer.cls_token_id
+    if start_token_id is None:
+        start_token_id = tokenizer.bos_token_id
+
+    end_token_id = tokenizer.sep_token_id
+    if end_token_id is None:
+        end_token_id = tokenizer.eos_token_id
     pad_token_id = tokenizer.pad_token_id
-    if pad_token_id is None:
-        raise ValueError("Tokenizer must define a pad_token_id for fixed-length batching")
+
+    if start_token_id is None or end_token_id is None or pad_token_id is None:
+        raise ValueError("Tokenizer must expose start, end, and pad token ids.")
+
+    payload_size = max_length - 2
+    token_ids = tokenizer(text, add_special_tokens=False)["input_ids"]
 
     chunks: list[dict[str, list[int]]] = []
     for chunk_ids in chunk_token_ids(token_ids, payload_size):
-        input_ids = tokenizer.build_inputs_with_special_tokens(chunk_ids)
-        input_ids = input_ids[:max_length]
+        input_ids = [start_token_id] + chunk_ids[:payload_size] + [end_token_id]
         attention_mask = [1] * len(input_ids)
+
         padding_length = max_length - len(input_ids)
-        if padding_length > 0:
-            input_ids = input_ids + [pad_token_id] * padding_length
-            attention_mask = attention_mask + [0] * padding_length
+        input_ids += [pad_token_id] * padding_length
+        attention_mask += [0] * padding_length
 
         chunks.append(
             {
