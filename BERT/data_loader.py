@@ -40,6 +40,15 @@ class ChunkRecord:
     chunk_index: int
 
 
+@dataclass(frozen=True)
+class ChunkSamplingStats:
+    """Dataset-level counts before and after label-aware chunk sampling."""
+
+    documents: dict[str, int]
+    chunks_before_sampling: dict[str, int]
+    chunks_after_sampling: dict[str, int]
+
+
 def extract_label_from_name(filename: str) -> str | None:
     """Extract labels using the existing dataset filename convention."""
     matches = re.findall(r"\(([^)]*)\)", filename)
@@ -127,42 +136,80 @@ def _sample_seed(seed: int, sample_key: str | None) -> int:
     return seed + int.from_bytes(digest, byteorder="big", signed=False)
 
 
+def _validate_chunk_limit(name: str, value: int | None) -> None:
+    if value is not None and value < 0:
+        raise ValueError(f"{name} must be None or a non-negative integer")
+
+
+def _chunk_limit_for_label(
+    label: str | None,
+    num_chunks_homme: int | None,
+    num_chunks_femme: int | None,
+) -> int | None:
+    if label == "homme":
+        return num_chunks_homme
+    if label == "femme":
+        return num_chunks_femme
+    return None
+
+
 def select_chunks(
     chunks: list[dict[str, list[int]]],
-    num_chunks: int | None = None,
+    label: str | None = None,
+    num_chunks_homme: int | None = None,
+    num_chunks_femme: int | None = None,
     seed: int = 42,
     sample_key: str | None = None,
 ) -> list[dict[str, list[int]]]:
-    """Skip the first chunk and optionally sample a fixed number of remaining chunks."""
+    """Skip the first chunk and optionally sample chunks using the document label."""
+    _validate_chunk_limit("num_chunks_homme", num_chunks_homme)
+    _validate_chunk_limit("num_chunks_femme", num_chunks_femme)
+    if not chunks:
+        return []
+
     remaining_chunks = chunks[1:]
-    if num_chunks is None:
+    if not remaining_chunks:
+        return chunks[:]
+
+    chunk_limit = _chunk_limit_for_label(label, num_chunks_homme, num_chunks_femme)
+    if chunk_limit is None:
         return remaining_chunks
-    if num_chunks < 0:
-        raise ValueError("num_chunks must be None or a non-negative integer")
-    if len(remaining_chunks) <= num_chunks:
+    if len(remaining_chunks) <= chunk_limit:
         return remaining_chunks
 
     rng = random.Random(_sample_seed(seed, sample_key))
-    selected_indices = sorted(rng.sample(range(len(remaining_chunks)), num_chunks))
+    selected_indices = sorted(rng.sample(range(len(remaining_chunks)), chunk_limit))
     return [remaining_chunks[index] for index in selected_indices]
 
 
-def describe_chunk_selection(num_chunks: int | None) -> str:
+def _format_chunk_limit(value: int | None) -> str:
+    if value is None:
+        return "all remaining chunks/document"
+    return f"{value} chunks/document"
+
+
+def describe_chunk_selection(
+    num_chunks_homme: int | None,
+    num_chunks_femme: int | None,
+) -> str:
     """Return a human-readable description of the active chunk selection policy."""
-    if num_chunks is None:
-        return "Skipping first chunk. Using all remaining chunks."
-    return f"Skipping first chunk. Randomly sampling {num_chunks} chunks per document."
+    return "\n".join(
+        [
+            "Chunk sampling configuration:",
+            f"  homme -> {_format_chunk_limit(num_chunks_homme)}",
+            f"  femme -> {_format_chunk_limit(num_chunks_femme)}",
+            "  first chunk skipped: True",
+            "  single-chunk documents kept: True",
+        ]
+    )
 
 
-def chunk_text(
+def encode_text_chunks(
     text: str,
     tokenizer: Any,
     max_length: int = 512,
-    num_chunks: int | None = None,
-    seed: int = 42,
-    sample_key: str | None = None,
 ) -> list[dict[str, list[int]]]:
-    """Tokenize a document into 512-token CamemBERT-ready chunks."""
+    """Tokenize a document into raw fixed-length CamemBERT-ready chunks."""
     start_token_id = tokenizer.cls_token_id
     if start_token_id is None:
         start_token_id = tokenizer.bos_token_id
@@ -194,27 +241,89 @@ def chunk_text(
             }
         )
 
-    return select_chunks(chunks, num_chunks=num_chunks, seed=seed, sample_key=sample_key)
+    return chunks
 
 
-def build_chunk_records(
+def chunk_text(
+    text: str,
+    tokenizer: Any,
+    max_length: int = 512,
+    label: str | None = None,
+    num_chunks_homme: int | None = None,
+    num_chunks_femme: int | None = None,
+    seed: int = 42,
+    sample_key: str | None = None,
+) -> list[dict[str, list[int]]]:
+    """Tokenize a document and apply the shared label-aware chunk selection policy."""
+    chunks = encode_text_chunks(text, tokenizer, max_length=max_length)
+    return select_chunks(
+        chunks,
+        label=label,
+        num_chunks_homme=num_chunks_homme,
+        num_chunks_femme=num_chunks_femme,
+        seed=seed,
+        sample_key=sample_key,
+    )
+
+
+def empty_chunk_sampling_stats() -> ChunkSamplingStats:
+    """Create an empty stats object with the expected class keys."""
+    labels = ("homme", "femme")
+    return ChunkSamplingStats(
+        documents={label: 0 for label in labels},
+        chunks_before_sampling={label: 0 for label in labels},
+        chunks_after_sampling={label: 0 for label in labels},
+    )
+
+
+def format_chunk_sampling_stats(split_name: str, stats: ChunkSamplingStats) -> str:
+    """Format dataset-level chunk sampling statistics for logs."""
+    lines = [f"{split_name} split:"]
+    for label in ("homme", "femme"):
+        lines.append(f"  {label} documents: {stats.documents.get(label, 0)}")
+    lines.append("")
+    for label in ("homme", "femme"):
+        lines.append(
+            f"  {label} chunks before sampling: "
+            f"{stats.chunks_before_sampling.get(label, 0)}"
+        )
+        lines.append(
+            f"  {label} chunks after sampling: "
+            f"{stats.chunks_after_sampling.get(label, 0)}"
+        )
+    return "\n".join(lines)
+
+
+def build_chunk_records_with_stats(
     documents: list[DocumentRecord],
     tokenizer: Any,
     max_length: int = 512,
-    num_chunks: int | None = None,
+    num_chunks_homme: int | None = None,
+    num_chunks_femme: int | None = None,
     seed: int = 42,
-) -> list[ChunkRecord]:
-    """Create chunk records from original documents."""
+) -> tuple[list[ChunkRecord], ChunkSamplingStats]:
+    """Create chunk records and collect before/after sampling statistics."""
     chunks: list[ChunkRecord] = []
+    stats = empty_chunk_sampling_stats()
+
     for document_index, document in enumerate(documents):
-        encoded_chunks = chunk_text(
-            document.text,
-            tokenizer,
-            max_length=max_length,
-            num_chunks=num_chunks,
+        raw_chunks = encode_text_chunks(document.text, tokenizer, max_length=max_length)
+        encoded_chunks = select_chunks(
+            raw_chunks,
+            label=document.label,
+            num_chunks_homme=num_chunks_homme,
+            num_chunks_femme=num_chunks_femme,
             seed=seed,
             sample_key=document.path,
         )
+        stats.documents[document.label] = stats.documents.get(document.label, 0) + 1
+        stats.chunks_before_sampling[document.label] = (
+            stats.chunks_before_sampling.get(document.label, 0) + len(raw_chunks)
+        )
+        stats.chunks_after_sampling[document.label] = (
+            stats.chunks_after_sampling.get(document.label, 0) + len(encoded_chunks)
+        )
+
         for chunk_index, encoded in enumerate(encoded_chunks):
             chunks.append(
                 ChunkRecord(
@@ -227,14 +336,36 @@ def build_chunk_records(
                     chunk_index=chunk_index,
                 )
             )
+
+    return chunks, stats
+
+
+def build_chunk_records(
+    documents: list[DocumentRecord],
+    tokenizer: Any,
+    max_length: int = 512,
+    num_chunks_homme: int | None = None,
+    num_chunks_femme: int | None = None,
+    seed: int = 42,
+) -> list[ChunkRecord]:
+    """Create chunk records from original documents."""
+    chunks, _ = build_chunk_records_with_stats(
+        documents,
+        tokenizer,
+        max_length=max_length,
+        num_chunks_homme=num_chunks_homme,
+        num_chunks_femme=num_chunks_femme,
+        seed=seed,
+    )
     return chunks
 
 
 class CamembertChunkDataset(Dataset):
     """PyTorch dataset of fixed-length CamemBERT chunks."""
 
-    def __init__(self, chunks: list[ChunkRecord]) -> None:
+    def __init__(self, chunks: list[ChunkRecord], chunk_sampling_stats: ChunkSamplingStats | None = None) -> None:
         self.chunks = chunks
+        self.chunk_sampling_stats = chunk_sampling_stats
 
     def __len__(self) -> int:
         return len(self.chunks)
@@ -257,18 +388,20 @@ def create_dataloader(
     tokenizer: Any,
     batch_size: int,
     max_length: int = 512,
-    num_chunks: int | None = None,
+    num_chunks_homme: int | None = None,
+    num_chunks_femme: int | None = None,
     seed: int = 42,
     shuffle: bool = False,
     num_workers: int = 0,
 ) -> DataLoader:
     """Create a DataLoader over tokenizer chunks."""
-    chunks = build_chunk_records(
+    chunks, stats = build_chunk_records_with_stats(
         documents,
         tokenizer,
         max_length=max_length,
-        num_chunks=num_chunks,
+        num_chunks_homme=num_chunks_homme,
+        num_chunks_femme=num_chunks_femme,
         seed=seed,
     )
-    dataset = CamembertChunkDataset(chunks)
+    dataset = CamembertChunkDataset(chunks, chunk_sampling_stats=stats)
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)

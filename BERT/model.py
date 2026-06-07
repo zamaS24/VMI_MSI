@@ -10,7 +10,12 @@ import torch
 from transformers import AutoTokenizer, CamembertForSequenceClassification
 
 from config import ID2LABEL, LABEL2ID
-from data_loader import chunk_text
+from data_loader import (
+    ChunkSamplingStats,
+    empty_chunk_sampling_stats,
+    encode_text_chunks,
+    select_chunks,
+)
 
 
 def create_tokenizer(model_name_or_path: str | Path) -> Any:
@@ -81,27 +86,45 @@ def predict_proba_for_texts(
     texts: list[str],
     device: torch.device,
     max_length: int = 512,
-    num_chunks: int | None = None,
+    labels: list[str] | None = None,
+    sample_keys: list[str] | None = None,
+    num_chunks_homme: int | None = None,
+    num_chunks_femme: int | None = None,
     seed: int = 42,
     batch_size: int = 8,
-) -> np.ndarray:
+    return_chunk_stats: bool = False,
+) -> np.ndarray | tuple[np.ndarray, ChunkSamplingStats]:
     """Predict document-level probabilities by averaging chunk probabilities."""
-    document_probs: list[np.ndarray] = []
+    if labels is not None and len(labels) != len(texts):
+        raise ValueError("labels must have the same length as texts")
+    if sample_keys is not None and len(sample_keys) != len(texts):
+        raise ValueError("sample_keys must have the same length as texts")
 
-    for text in texts:
-        chunks = chunk_text(
-            text,
-            tokenizer,
-            max_length=max_length,
-            num_chunks=num_chunks,
+    document_probs: list[np.ndarray] = []
+    chunk_stats = empty_chunk_sampling_stats() if return_chunk_stats else None
+
+    for index, text in enumerate(texts):
+        label = labels[index] if labels is not None else None
+        sample_key = sample_keys[index] if sample_keys is not None else text
+        raw_chunks = encode_text_chunks(text, tokenizer, max_length=max_length)
+        chunks = select_chunks(
+            raw_chunks,
+            label=label,
+            num_chunks_homme=num_chunks_homme,
+            num_chunks_femme=num_chunks_femme,
             seed=seed,
-            sample_key=text,
+            sample_key=sample_key,
         )
-        if not chunks:
-            raise ValueError(
-                "A document has no chunks after skipping the first chunk. "
-                "Use longer documents or adjust preprocessing."
+        if chunk_stats is not None and label is not None:
+            chunk_stats.documents[label] = chunk_stats.documents.get(label, 0) + 1
+            chunk_stats.chunks_before_sampling[label] = (
+                chunk_stats.chunks_before_sampling.get(label, 0) + len(raw_chunks)
             )
+            chunk_stats.chunks_after_sampling[label] = (
+                chunk_stats.chunks_after_sampling.get(label, 0) + len(chunks)
+            )
+        if not chunks:
+            raise ValueError("A document produced no chunks.")
         input_ids = np.asarray([chunk["input_ids"] for chunk in chunks], dtype=np.int64)
         attention_mask = np.asarray([chunk["attention_mask"] for chunk in chunks], dtype=np.int64)
         chunk_probs = predict_proba_from_arrays(
@@ -113,4 +136,7 @@ def predict_proba_for_texts(
         )
         document_probs.append(chunk_probs.mean(axis=0))
 
-    return np.vstack(document_probs)
+    probabilities = np.vstack(document_probs)
+    if return_chunk_stats:
+        return probabilities, chunk_stats
+    return probabilities

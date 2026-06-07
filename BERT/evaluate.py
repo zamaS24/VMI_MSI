@@ -12,7 +12,7 @@ import torch
 from sklearn.metrics import confusion_matrix
 
 from config import ID2LABEL, ModelConfig, PathConfig, TrainingConfig
-from data_loader import describe_chunk_selection, documents_to_frame, load_split
+from data_loader import describe_chunk_selection, documents_to_frame, format_chunk_sampling_stats, load_split
 from model import load_model_and_tokenizer, predict_proba_for_texts
 from utils import compute_metrics, load_json, plot_confusion_matrix, plot_roc_curve, save_json
 
@@ -28,7 +28,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--artifact_dir", "--artifact-dir", type=Path, default=paths.artifact_dir)
     parser.add_argument("--vis_dir", "--vis-dir", type=Path, default=paths.vis_dir)
     parser.add_argument("--max_length", "--max-length", type=int, default=model_defaults.max_length)
-    parser.add_argument("--num_chunks", "--num-chunks", type=int, default=model_defaults.num_chunks)
+    parser.add_argument("--num_chunks_homme", "--num-chunks-homme", type=int, default=model_defaults.num_chunks_homme)
+    parser.add_argument("--num_chunks_femme", "--num-chunks-femme", type=int, default=model_defaults.num_chunks_femme)
     parser.add_argument("--seed", type=int, default=train_defaults.seed)
     parser.add_argument("--batch_size", "--batch-size", type=int, default=8)
     return parser.parse_args()
@@ -81,22 +82,29 @@ def main() -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model, tokenizer = load_model_and_tokenizer(args.model_dir, device)
-    print(describe_chunk_selection(args.num_chunks))
+    print(describe_chunk_selection(args.num_chunks_homme, args.num_chunks_femme))
 
     test_docs = load_split(args.data_dir, "test")
     texts = [doc.text for doc in test_docs]
+    labels = [doc.label for doc in test_docs]
+    sample_keys = [doc.path for doc in test_docs]
     y_true = np.asarray([doc.label_id for doc in test_docs], dtype=np.int64)
 
-    probabilities = predict_proba_for_texts(
+    probabilities, chunk_stats = predict_proba_for_texts(
         model,
         tokenizer,
         texts,
         device,
         max_length=args.max_length,
-        num_chunks=args.num_chunks,
+        labels=labels,
+        sample_keys=sample_keys,
+        num_chunks_homme=args.num_chunks_homme,
+        num_chunks_femme=args.num_chunks_femme,
         seed=args.seed,
         batch_size=args.batch_size,
+        return_chunk_stats=True,
     )
+    print(format_chunk_sampling_stats("Test", chunk_stats))
     y_pred = probabilities.argmax(axis=1)
     y_score = probabilities[:, 1]
 

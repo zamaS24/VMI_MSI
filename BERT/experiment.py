@@ -14,7 +14,7 @@ import pandas as pd
 import torch
 
 from config import ID2LABEL, ModelConfig, PathConfig, TrainingConfig
-from data_loader import describe_chunk_selection, load_split
+from data_loader import describe_chunk_selection, format_chunk_sampling_stats, load_split
 from model import create_model, create_tokenizer, load_model_and_tokenizer, predict_proba_for_texts
 
 
@@ -41,7 +41,7 @@ class ExplanationPlugin(ABC):
         texts: list[str],
         documents: list[object],
         probabilities: np.ndarray,
-        predictor: Callable[[list[str]], np.ndarray],
+        predictor_factory: Callable[[object], Callable[[list[str]], np.ndarray]],
         tokenizer: object,
         n_terms: int,
     ) -> list[ExplanationResult]:
@@ -58,7 +58,7 @@ class LimePlugin(ExplanationPlugin):
         texts: list[str],
         documents: list[object],
         probabilities: np.ndarray,
-        predictor: Callable[[list[str]], np.ndarray],
+        predictor_factory: Callable[[object], Callable[[list[str]], np.ndarray]],
         tokenizer: object,
         n_terms: int,
     ) -> list[ExplanationResult]:
@@ -68,6 +68,7 @@ class LimePlugin(ExplanationPlugin):
         results: list[ExplanationResult] = []
 
         for index, document in enumerate(documents):
+            predictor = predictor_factory(document)
             predicted_id = int(probabilities[index].argmax())
             explanation = explainer.explain_instance(
                 texts[index],
@@ -100,21 +101,22 @@ class ShapPlugin(ExplanationPlugin):
         texts: list[str],
         documents: list[object],
         probabilities: np.ndarray,
-        predictor: Callable[[list[str]], np.ndarray],
+        predictor_factory: Callable[[object], Callable[[list[str]], np.ndarray]],
         tokenizer: object,
         n_terms: int,
     ) -> list[ExplanationResult]:
         import shap
 
         masker = shap.maskers.Text(tokenizer)
-        explainer = shap.Explainer(predictor, masker, output_names=[ID2LABEL[0], ID2LABEL[1]])
-        shap_values = explainer(texts)
         results: list[ExplanationResult] = []
 
         for index, document in enumerate(documents):
+            predictor = predictor_factory(document)
+            explainer = shap.Explainer(predictor, masker, output_names=[ID2LABEL[0], ID2LABEL[1]])
+            shap_values = explainer([texts[index]])
             predicted_id = int(probabilities[index].argmax())
-            values = shap_values[index].values
-            tokens = shap_values[index].data
+            values = shap_values[0].values
+            tokens = shap_values[0].data
 
             if values.ndim == 2:
                 scores = values[:, predicted_id]
@@ -164,7 +166,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--n_examples", "--n-examples", type=int, default=10)
     parser.add_argument("--n_terms", "--n-terms", type=int, default=20)
     parser.add_argument("--max_length", "--max-length", type=int, default=model_defaults.max_length)
-    parser.add_argument("--num_chunks", "--num-chunks", type=int, default=model_defaults.num_chunks)
+    parser.add_argument("--num_chunks_homme", "--num-chunks-homme", type=int, default=model_defaults.num_chunks_homme)
+    parser.add_argument("--num_chunks_femme", "--num-chunks-femme", type=int, default=model_defaults.num_chunks_femme)
     parser.add_argument("--seed", type=int, default=train_defaults.seed)
     parser.add_argument("--batch_size", "--batch-size", type=int, default=8)
     parser.add_argument("--output_path", "--output-path", type=Path, default=paths.artifact_dir / "experiment_results.csv")
@@ -187,20 +190,28 @@ def make_predictor(
     tokenizer: object,
     device: torch.device,
     max_length: int,
-    num_chunks: int | None,
+    num_chunks_homme: int | None,
+    num_chunks_femme: int | None,
     seed: int,
     batch_size: int,
+    label: str | None = None,
+    sample_key: str | None = None,
 ) -> Callable[[list[str]], np.ndarray]:
     """Create a chunk-aware document probability predictor."""
 
     def predict(texts: list[str]) -> np.ndarray:
+        labels = [label] * len(texts) if label is not None else None
+        sample_keys = [sample_key] * len(texts) if sample_key is not None else None
         return predict_proba_for_texts(
             model,
             tokenizer,
             list(texts),
             device,
             max_length=max_length,
-            num_chunks=num_chunks,
+            labels=labels,
+            sample_keys=sample_keys,
+            num_chunks_homme=num_chunks_homme,
+            num_chunks_femme=num_chunks_femme,
             seed=seed,
             batch_size=batch_size,
         )
@@ -238,22 +249,43 @@ def main() -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model, tokenizer = load_experiment_model(args, device)
-    print(describe_chunk_selection(args.num_chunks))
+    print(describe_chunk_selection(args.num_chunks_homme, args.num_chunks_femme))
     documents = load_split(args.data_dir, args.split)[: args.n_examples]
     texts = [document.text for document in documents]
-    predictor = make_predictor(
+    labels = [document.label for document in documents]
+    sample_keys = [document.path for document in documents]
+    probabilities, chunk_stats = predict_proba_for_texts(
         model,
         tokenizer,
+        texts,
         device,
-        args.max_length,
-        args.num_chunks,
-        args.seed,
-        args.batch_size,
+        max_length=args.max_length,
+        labels=labels,
+        sample_keys=sample_keys,
+        num_chunks_homme=args.num_chunks_homme,
+        num_chunks_femme=args.num_chunks_femme,
+        seed=args.seed,
+        batch_size=args.batch_size,
+        return_chunk_stats=True,
     )
-    probabilities = predictor(texts)
+    print(format_chunk_sampling_stats(args.split.capitalize(), chunk_stats))
+
+    def predictor_factory(document: object) -> Callable[[list[str]], np.ndarray]:
+        return make_predictor(
+            model,
+            tokenizer,
+            device,
+            args.max_length,
+            args.num_chunks_homme,
+            args.num_chunks_femme,
+            args.seed,
+            args.batch_size,
+            label=document.label,
+            sample_key=document.path,
+        )
 
     plugin = PLUGIN_REGISTRY[args.method]()
-    results = plugin.explain(texts, documents, probabilities, predictor, tokenizer, args.n_terms)
+    results = plugin.explain(texts, documents, probabilities, predictor_factory, tokenizer, args.n_terms)
     frame = results_to_frame(args.model, args.method, results)
 
     if args.output_path.exists():

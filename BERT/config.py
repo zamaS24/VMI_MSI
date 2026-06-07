@@ -55,7 +55,8 @@ class ModelConfig:
     model_name: str = "camembert-base"
     num_labels: int = 2
     max_length: int = 512
-    num_chunks: Optional[int] = None
+    num_chunks_homme: Optional[int] = None
+    num_chunks_femme: Optional[int] = None
 
 
 @dataclass
