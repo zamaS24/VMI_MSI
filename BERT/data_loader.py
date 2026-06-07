@@ -122,21 +122,24 @@ def chunk_text(text: str, tokenizer: Any, max_length: int = 512) -> list[dict[st
     special_tokens = tokenizer.num_special_tokens_to_add(pair=False)
     payload_size = max_length - special_tokens
     token_ids = tokenizer(text, add_special_tokens=False)["input_ids"]
+    pad_token_id = tokenizer.pad_token_id
+    if pad_token_id is None:
+        raise ValueError("Tokenizer must define a pad_token_id for fixed-length batching")
 
     chunks: list[dict[str, list[int]]] = []
     for chunk_ids in chunk_token_ids(token_ids, payload_size):
-        encoded = tokenizer.prepare_for_model(
-            chunk_ids,
-            add_special_tokens=True,
-            max_length=max_length,
-            padding="max_length",
-            truncation=True,
-            return_attention_mask=True,
-        )
+        input_ids = tokenizer.build_inputs_with_special_tokens(chunk_ids)
+        input_ids = input_ids[:max_length]
+        attention_mask = [1] * len(input_ids)
+        padding_length = max_length - len(input_ids)
+        if padding_length > 0:
+            input_ids = input_ids + [pad_token_id] * padding_length
+            attention_mask = attention_mask + [0] * padding_length
+
         chunks.append(
             {
-                "input_ids": encoded["input_ids"],
-                "attention_mask": encoded["attention_mask"],
+                "input_ids": input_ids,
+                "attention_mask": attention_mask,
             }
         )
 
