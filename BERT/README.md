@@ -62,7 +62,14 @@ As a fallback, labels can also be inferred from parent folders named `homme` or 
 
 Texts are tokenized with the CamemBERT tokenizer. Long documents are split into non-overlapping chunks whose final encoded length is 512 tokens including special tokens. Each chunk inherits the original document label.
 
-Training metrics are computed over chunks. Evaluation and explainability use document-level predictions by averaging probabilities over all chunks from the same document.
+The first chunk is always skipped because it contains metadata/header information. After skipping the first chunk:
+
+- `num_chunks = None` uses all remaining chunks.
+- `num_chunks = N` randomly samples at most `N` remaining chunks per document.
+
+Sampling is reproducible with the project seed.
+
+Training metrics are computed over selected chunks. Evaluation and explainability use document-level predictions by averaging probabilities over the selected chunks from the same document.
 
 ## Training
 
@@ -78,6 +85,7 @@ python BERT/train.py \
   --eval_batch_size 8 \
   --epochs 5 \
   --learning_rate 2e-5 \
+  --num_chunks 5 \
   --patience 2
 ```
 
@@ -106,6 +114,12 @@ BERT/outputs/checkpoints/epoch_XX/
 python BERT/evaluate.py --data_dir data/datasetSujet3/content/dataset
 ```
 
+Use a fixed number of sampled chunks per document:
+
+```bash
+python BERT/evaluate.py --data_dir data/datasetSujet3/content/dataset --num_chunks 5
+```
+
 Computes:
 
 - accuracy
@@ -130,6 +144,12 @@ BERT/vis/roc_curve.png
 python BERT/explain_lime.py --data_dir data/datasetSujet3/content/dataset --n_examples 50
 ```
 
+To explain with sampled chunks:
+
+```bash
+python BERT/explain_lime.py --data_dir data/datasetSujet3/content/dataset --n_examples 50 --num_chunks 5
+```
+
 Outputs:
 
 ```text
@@ -145,6 +165,12 @@ LIME calls the same document-level prediction function used in evaluation, inclu
 
 ```bash
 python BERT/explain_shap.py --data_dir data/datasetSujet3/content/dataset --n_examples 20
+```
+
+To explain with sampled chunks:
+
+```bash
+python BERT/explain_shap.py --data_dir data/datasetSujet3/content/dataset --n_examples 20 --num_chunks 5
 ```
 
 Outputs:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -55,6 +55,7 @@ class ModelConfig:
     model_name: str = "camembert-base"
     num_labels: int = 2
     max_length: int = 512
+    num_chunks: Optional[int] = None
 
 
 @dataclass

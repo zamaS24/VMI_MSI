@@ -13,7 +13,7 @@ from tqdm.auto import tqdm
 from transformers import get_linear_schedule_with_warmup
 
 from config import ID2LABEL, ModelConfig, PathConfig, TrainingConfig, dataclass_to_dict
-from data_loader import create_dataloader, load_splits
+from data_loader import create_dataloader, describe_chunk_selection, load_splits
 from model import batch_to_device, create_model, create_tokenizer, save_model
 from utils import compute_metrics, ensure_dir, save_json, seed_everything
 
@@ -28,6 +28,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--data_dir", "--data-dir", type=Path, default=path_defaults.data_dir)
     parser.add_argument("--model_name", "--model-name", default=model_defaults.model_name)
     parser.add_argument("--max_length", "--max-length", type=int, default=model_defaults.max_length)
+    parser.add_argument("--num_chunks", "--num-chunks", type=int, default=model_defaults.num_chunks)
     parser.add_argument("--batch_size", "--batch-size", type=int, default=train_defaults.batch_size)
     parser.add_argument("--eval_batch_size", "--eval-batch-size", type=int, default=train_defaults.eval_batch_size)
     parser.add_argument("--epochs", type=int, default=train_defaults.epochs)
@@ -126,6 +127,7 @@ def run_training(args: argparse.Namespace) -> dict[str, Any]:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     tokenizer = create_tokenizer(args.model_name)
     model = create_model(args.model_name).to(device)
+    print(describe_chunk_selection(args.num_chunks))
 
     train_docs, val_docs, _ = load_splits(args.data_dir)
     train_loader = create_dataloader(
@@ -133,6 +135,8 @@ def run_training(args: argparse.Namespace) -> dict[str, Any]:
         tokenizer,
         batch_size=args.batch_size,
         max_length=args.max_length,
+        num_chunks=args.num_chunks,
+        seed=args.seed,
         shuffle=True,
         num_workers=args.num_workers,
     )
@@ -141,6 +145,8 @@ def run_training(args: argparse.Namespace) -> dict[str, Any]:
         tokenizer,
         batch_size=args.eval_batch_size,
         max_length=args.max_length,
+        num_chunks=args.num_chunks,
+        seed=args.seed,
         shuffle=False,
         num_workers=args.num_workers,
     )
@@ -212,7 +218,13 @@ def run_training(args: argparse.Namespace) -> dict[str, Any]:
     save_history(history, history_path)
 
     metrics = {
-        "model": dataclass_to_dict(ModelConfig(model_name=args.model_name, max_length=args.max_length)),
+        "model": dataclass_to_dict(
+            ModelConfig(
+                model_name=args.model_name,
+                max_length=args.max_length,
+                num_chunks=args.num_chunks,
+            )
+        ),
         "training": {
             "seed": args.seed,
             "batch_size": args.batch_size,

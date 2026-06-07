@@ -13,8 +13,8 @@ import numpy as np
 import pandas as pd
 import torch
 
-from config import ID2LABEL, ModelConfig, PathConfig
-from data_loader import load_split
+from config import ID2LABEL, ModelConfig, PathConfig, TrainingConfig
+from data_loader import describe_chunk_selection, load_split
 from model import create_model, create_tokenizer, load_model_and_tokenizer, predict_proba_for_texts
 
 
@@ -153,6 +153,7 @@ def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     paths = PathConfig()
     model_defaults = ModelConfig()
+    train_defaults = TrainingConfig()
     parser = argparse.ArgumentParser(description="Run BERT explainability experiments.")
     parser.add_argument("--model", choices=("pretrained", "finetuned"), required=True)
     parser.add_argument("--method", choices=tuple(PLUGIN_REGISTRY.keys()), required=True)
@@ -163,6 +164,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--n_examples", "--n-examples", type=int, default=10)
     parser.add_argument("--n_terms", "--n-terms", type=int, default=20)
     parser.add_argument("--max_length", "--max-length", type=int, default=model_defaults.max_length)
+    parser.add_argument("--num_chunks", "--num-chunks", type=int, default=model_defaults.num_chunks)
+    parser.add_argument("--seed", type=int, default=train_defaults.seed)
     parser.add_argument("--batch_size", "--batch-size", type=int, default=8)
     parser.add_argument("--output_path", "--output-path", type=Path, default=paths.artifact_dir / "experiment_results.csv")
     return parser.parse_args()
@@ -184,6 +187,8 @@ def make_predictor(
     tokenizer: object,
     device: torch.device,
     max_length: int,
+    num_chunks: int | None,
+    seed: int,
     batch_size: int,
 ) -> Callable[[list[str]], np.ndarray]:
     """Create a chunk-aware document probability predictor."""
@@ -195,6 +200,8 @@ def make_predictor(
             list(texts),
             device,
             max_length=max_length,
+            num_chunks=num_chunks,
+            seed=seed,
             batch_size=batch_size,
         )
 
@@ -231,9 +238,18 @@ def main() -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model, tokenizer = load_experiment_model(args, device)
+    print(describe_chunk_selection(args.num_chunks))
     documents = load_split(args.data_dir, args.split)[: args.n_examples]
     texts = [document.text for document in documents]
-    predictor = make_predictor(model, tokenizer, device, args.max_length, args.batch_size)
+    predictor = make_predictor(
+        model,
+        tokenizer,
+        device,
+        args.max_length,
+        args.num_chunks,
+        args.seed,
+        args.batch_size,
+    )
     probabilities = predictor(texts)
 
     plugin = PLUGIN_REGISTRY[args.method]()

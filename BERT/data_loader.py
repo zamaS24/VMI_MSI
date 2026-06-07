@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
+import random
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -117,7 +119,49 @@ def chunk_token_ids(input_ids: list[int], chunk_size: int) -> list[list[int]]:
     return [input_ids[start:start + chunk_size] for start in range(0, len(input_ids), chunk_size)]
 
 
-def chunk_text(text: str, tokenizer: Any, max_length: int = 512) -> list[dict[str, list[int]]]:
+def _sample_seed(seed: int, sample_key: str | None) -> int:
+    """Derive a stable per-document sampling seed."""
+    if sample_key is None:
+        return seed
+    digest = hashlib.blake2b(str(sample_key).encode("utf-8"), digest_size=8).digest()
+    return seed + int.from_bytes(digest, byteorder="big", signed=False)
+
+
+def select_chunks(
+    chunks: list[dict[str, list[int]]],
+    num_chunks: int | None = None,
+    seed: int = 42,
+    sample_key: str | None = None,
+) -> list[dict[str, list[int]]]:
+    """Skip the first chunk and optionally sample a fixed number of remaining chunks."""
+    remaining_chunks = chunks[1:]
+    if num_chunks is None:
+        return remaining_chunks
+    if num_chunks < 0:
+        raise ValueError("num_chunks must be None or a non-negative integer")
+    if len(remaining_chunks) <= num_chunks:
+        return remaining_chunks
+
+    rng = random.Random(_sample_seed(seed, sample_key))
+    selected_indices = sorted(rng.sample(range(len(remaining_chunks)), num_chunks))
+    return [remaining_chunks[index] for index in selected_indices]
+
+
+def describe_chunk_selection(num_chunks: int | None) -> str:
+    """Return a human-readable description of the active chunk selection policy."""
+    if num_chunks is None:
+        return "Skipping first chunk. Using all remaining chunks."
+    return f"Skipping first chunk. Randomly sampling {num_chunks} chunks per document."
+
+
+def chunk_text(
+    text: str,
+    tokenizer: Any,
+    max_length: int = 512,
+    num_chunks: int | None = None,
+    seed: int = 42,
+    sample_key: str | None = None,
+) -> list[dict[str, list[int]]]:
     """Tokenize a document into 512-token CamemBERT-ready chunks."""
     start_token_id = tokenizer.cls_token_id
     if start_token_id is None:
@@ -150,18 +194,27 @@ def chunk_text(text: str, tokenizer: Any, max_length: int = 512) -> list[dict[st
             }
         )
 
-    return chunks
+    return select_chunks(chunks, num_chunks=num_chunks, seed=seed, sample_key=sample_key)
 
 
 def build_chunk_records(
     documents: list[DocumentRecord],
     tokenizer: Any,
     max_length: int = 512,
+    num_chunks: int | None = None,
+    seed: int = 42,
 ) -> list[ChunkRecord]:
     """Create chunk records from original documents."""
     chunks: list[ChunkRecord] = []
     for document_index, document in enumerate(documents):
-        encoded_chunks = chunk_text(document.text, tokenizer, max_length=max_length)
+        encoded_chunks = chunk_text(
+            document.text,
+            tokenizer,
+            max_length=max_length,
+            num_chunks=num_chunks,
+            seed=seed,
+            sample_key=document.path,
+        )
         for chunk_index, encoded in enumerate(encoded_chunks):
             chunks.append(
                 ChunkRecord(
@@ -204,10 +257,18 @@ def create_dataloader(
     tokenizer: Any,
     batch_size: int,
     max_length: int = 512,
+    num_chunks: int | None = None,
+    seed: int = 42,
     shuffle: bool = False,
     num_workers: int = 0,
 ) -> DataLoader:
     """Create a DataLoader over tokenizer chunks."""
-    chunks = build_chunk_records(documents, tokenizer, max_length=max_length)
+    chunks = build_chunk_records(
+        documents,
+        tokenizer,
+        max_length=max_length,
+        num_chunks=num_chunks,
+        seed=seed,
+    )
     dataset = CamembertChunkDataset(chunks)
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)

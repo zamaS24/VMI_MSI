@@ -11,8 +11,8 @@ import pandas as pd
 import torch
 from sklearn.metrics import confusion_matrix
 
-from config import ID2LABEL, PathConfig
-from data_loader import documents_to_frame, load_split
+from config import ID2LABEL, ModelConfig, PathConfig, TrainingConfig
+from data_loader import describe_chunk_selection, documents_to_frame, load_split
 from model import load_model_and_tokenizer, predict_proba_for_texts
 from utils import compute_metrics, load_json, plot_confusion_matrix, plot_roc_curve, save_json
 
@@ -20,12 +20,16 @@ from utils import compute_metrics, load_json, plot_confusion_matrix, plot_roc_cu
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     paths = PathConfig()
+    model_defaults = ModelConfig()
+    train_defaults = TrainingConfig()
     parser = argparse.ArgumentParser(description="Evaluate a fine-tuned CamemBERT classifier.")
     parser.add_argument("--data_dir", "--data-dir", type=Path, default=paths.data_dir)
     parser.add_argument("--model_dir", "--model-dir", type=Path, default=paths.best_model_dir)
     parser.add_argument("--artifact_dir", "--artifact-dir", type=Path, default=paths.artifact_dir)
     parser.add_argument("--vis_dir", "--vis-dir", type=Path, default=paths.vis_dir)
-    parser.add_argument("--max_length", "--max-length", type=int, default=512)
+    parser.add_argument("--max_length", "--max-length", type=int, default=model_defaults.max_length)
+    parser.add_argument("--num_chunks", "--num-chunks", type=int, default=model_defaults.num_chunks)
+    parser.add_argument("--seed", type=int, default=train_defaults.seed)
     parser.add_argument("--batch_size", "--batch-size", type=int, default=8)
     return parser.parse_args()
 
@@ -77,6 +81,7 @@ def main() -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model, tokenizer = load_model_and_tokenizer(args.model_dir, device)
+    print(describe_chunk_selection(args.num_chunks))
 
     test_docs = load_split(args.data_dir, "test")
     texts = [doc.text for doc in test_docs]
@@ -88,6 +93,8 @@ def main() -> None:
         texts,
         device,
         max_length=args.max_length,
+        num_chunks=args.num_chunks,
+        seed=args.seed,
         batch_size=args.batch_size,
     )
     y_pred = probabilities.argmax(axis=1)

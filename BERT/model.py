@@ -81,13 +81,27 @@ def predict_proba_for_texts(
     texts: list[str],
     device: torch.device,
     max_length: int = 512,
+    num_chunks: int | None = None,
+    seed: int = 42,
     batch_size: int = 8,
 ) -> np.ndarray:
     """Predict document-level probabilities by averaging chunk probabilities."""
     document_probs: list[np.ndarray] = []
 
     for text in texts:
-        chunks = chunk_text(text, tokenizer, max_length=max_length)
+        chunks = chunk_text(
+            text,
+            tokenizer,
+            max_length=max_length,
+            num_chunks=num_chunks,
+            seed=seed,
+            sample_key=text,
+        )
+        if not chunks:
+            raise ValueError(
+                "A document has no chunks after skipping the first chunk. "
+                "Use longer documents or adjust preprocessing."
+            )
         input_ids = np.asarray([chunk["input_ids"] for chunk in chunks], dtype=np.int64)
         attention_mask = np.asarray([chunk["attention_mask"] for chunk in chunks], dtype=np.int64)
         chunk_probs = predict_proba_from_arrays(
