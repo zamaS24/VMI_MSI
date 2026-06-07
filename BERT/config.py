@@ -19,7 +19,7 @@ ROOT_COLLAB=PROJECT_ROOT.parent
 class PathConfig:
     """Filesystem locations used by the BERT pipeline."""
 
-    data_dir: Path = PROJECT_ROOT / "drive"/"MyDrive"/"VMI_PROJET"/"data" / "datasetSujet3" / "content" / "dataset"
+    data_dir: Path = ROOT_COLLAB / "drive"/"MyDrive"/"VMI_PROJET"/"data" / "datasetSujet3" / "content" / "dataset"
     output_dir: Path = BERT_ROOT / "outputs"
     checkpoint_dir: Path = BERT_ROOT / "outputs" / "checkpoints"
     model_dir: Path = BERT_ROOT / "outputs" / "models"
