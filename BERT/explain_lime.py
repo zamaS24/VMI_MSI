@@ -110,7 +110,7 @@ def main() -> None:
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print('\n[explain_lime.py] : Using device:', device)
-    
+
     model, tokenizer = load_model_and_tokenizer(args.model_dir, device)
     print(describe_chunk_selection(args.num_chunks_homme, args.num_chunks_femme))
     documents = load_split(args.data_dir, args.split)[: args.n_examples]
