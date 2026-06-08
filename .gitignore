@@ -4,3 +4,6 @@ tmp/
 
 .vscode/
 
+
+__pycache__/
+models/
