@@ -32,6 +32,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--split", choices=("train", "val", "test"), default="test")
     parser.add_argument("--n_examples", "--n-examples", type=int, default=50)
     parser.add_argument("--n_terms", "--n-terms", type=int, default=20)
+    parser.add_argument("--num_samples", "--num-samples", type=int, default=500)
     parser.add_argument("--max_length", "--max-length", type=int, default=model_defaults.max_length)
     parser.add_argument("--num_chunks_homme", "--num-chunks-homme", type=int, default=model_defaults.num_chunks_homme)
     parser.add_argument("--num_chunks_femme", "--num-chunks-femme", type=int, default=model_defaults.num_chunks_femme)
@@ -51,27 +52,24 @@ def make_predictor(
     num_chunks_femme: int | None,
     seed: int,
     batch_size: int,
-    label: str | None = None,
-    sample_key: str | None = None,
 ) -> Callable[[list[str]], np.ndarray]:
     """Create a probability function compatible with LIME."""
 
     def predict(texts: list[str]) -> np.ndarray:
-        labels = [label] * len(texts) if label is not None else None
-        sample_keys = [sample_key] * len(texts) if sample_key is not None else None
-        return predict_proba_for_texts(
-            model,
-            tokenizer,
-            list(texts),
-            device,
-            max_length=max_length,
-            labels=labels,
-            sample_keys=sample_keys,
-            num_chunks_homme=num_chunks_homme,
-            num_chunks_femme=num_chunks_femme,
-            seed=seed,
-            batch_size=batch_size,
-        )
+        with torch.no_grad():
+            return predict_proba_for_texts(
+                model,
+                tokenizer,
+                list(texts),
+                device,
+                max_length=max_length,
+                labels=None,
+                sample_keys=None,
+                num_chunks_homme=num_chunks_homme,
+                num_chunks_femme=num_chunks_femme,
+                seed=seed,
+                batch_size=batch_size,
+            )
 
     return predict
 
@@ -112,6 +110,7 @@ def main() -> None:
     print('\n[explain_lime.py] : Using device:', device)
 
     model, tokenizer = load_model_and_tokenizer(args.model_dir, device)
+    model.eval()
     print(describe_chunk_selection(args.num_chunks_homme, args.num_chunks_femme))
     documents = load_split(args.data_dir, args.split)[: args.n_examples]
     texts = [document.text for document in documents]
@@ -133,33 +132,33 @@ def main() -> None:
     )
     print(format_chunk_sampling_stats(args.split.capitalize(), chunk_stats))
     explainer = LimeTextExplainer(class_names=[ID2LABEL[0], ID2LABEL[1]])
+    predictor = make_predictor(
+        model,
+        tokenizer,
+        device,
+        args.max_length,
+        args.num_chunks_homme,
+        args.num_chunks_femme,
+        args.seed,
+        args.batch_size,
+    )
 
     rows: list[dict[str, object]] = []
     class_counts: dict[str, int] = defaultdict(int)
 
     for doc_index, document in enumerate(documents):
+        print(f"[{doc_index + 1}/{len(documents)}] Explaining: {document.path}")
         document_probabilities = probabilities[doc_index]
         predicted_id = int(document_probabilities.argmax())
         predicted_label = ID2LABEL[predicted_id]
         class_counts[predicted_label] += 1
-        predictor = make_predictor(
-            model,
-            tokenizer,
-            device,
-            args.max_length,
-            args.num_chunks_homme,
-            args.num_chunks_femme,
-            args.seed,
-            args.batch_size,
-            label=document.label,
-            sample_key=document.path,
-        )
 
         explanation = explainer.explain_instance(
             document.text,
             predictor,
             labels=[predicted_id],
             num_features=args.n_terms,
+            num_samples=args.num_samples,
         )
 
         if doc_index == 0:
@@ -206,3 +205,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    

@@ -20,7 +20,11 @@ from data_loader import (
 
 def create_tokenizer(model_name_or_path: str | Path) -> Any:
     """Load a CamemBERT tokenizer."""
-    return AutoTokenizer.from_pretrained(str(model_name_or_path), use_fast=True)
+    return AutoTokenizer.from_pretrained(
+        str(model_name_or_path),
+        use_fast=True,
+        extra_special_tokens={},
+    )
 
 
 def create_model(model_name_or_path: str | Path = "camembert-base") -> CamembertForSequenceClassification:
@@ -102,6 +106,11 @@ def predict_proba_for_texts(
 
     document_probs: list[np.ndarray] = []
     chunk_stats = empty_chunk_sampling_stats() if return_chunk_stats else None
+    if not texts:
+        probabilities = np.empty((0, int(getattr(model.config, "num_labels", 2))))
+        if return_chunk_stats:
+            return probabilities, chunk_stats
+        return probabilities
 
     for index, text in enumerate(texts):
         label = labels[index] if labels is not None else None

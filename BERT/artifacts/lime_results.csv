@@ -1,0 +1,2 @@
+file_path,true_label,predicted_label,confidence,explained_class,rank,token,score
+data\datasetSujet3\content\dataset\test\(A.D.G.)(0)(juste un rigolo)(1)(1977)(1947)(2004)(fr)(z)(z)(V)(R)(T).txt,homme,homme,0.9717326164245605,homme,1,elle,0.06198302120946377
