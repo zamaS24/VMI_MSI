@@ -1,14 +1,56 @@
-data/ 
-tmp/
-*.env
-
+# IDE
 .vscode/
+.idea/
 
-
+# Python cache
 __pycache__/
-models/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
+# Virtual environments
+.venv/
+venv/
+env/
 
+# Logs
+*.log
+logs/
+BERT/outputs/logs/
 
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Data
+data/
+
+# Large model/checkpoint folders
+BERT/outputs/checkpoints/
 BERT/outputs/models/
+
+# ML model/checkpoint files
+*.pt
+*.pth
+*.ckpt
 *.safetensors
+*.bin
+*.onnx
+*.pkl
+*.pickle
+*.joblib
+*.h5
+*.hdf5
+*.npy
+*.npz
+
+# Notebook cache
+.ipynb_checkpoints/
+
+# OS files
+.DS_Store
+Thumbs.db
