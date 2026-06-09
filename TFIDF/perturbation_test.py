@@ -5,16 +5,19 @@ import re
 from pathlib import Path
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+TFIDF_ROOT = Path(__file__).resolve().parent
 DEFAULT_DATA_DIR = Path('data') / 'datasetSujet3' / 'content' / 'dataset'
-DEFAULT_MODEL_PATH = Path(__file__).resolve().parent / 'outputs' / 'tfidf_mlp_model.pt'
-DEFAULT_VECTORIZER_PATH = Path(__file__).resolve().parent / 'outputs' / 'tfidf_vectorizer.pkl'
-DEFAULT_LRP_GLOBAL_PATH = PROJECT_ROOT / 'vis' / 'tfidf_lrp_global.csv'
-DEFAULT_IG_GLOBAL_PATH = PROJECT_ROOT / 'vis' / 'tfidf_integrated_gradients_global.csv'
-DEFAULT_OUTPUT_CSV = PROJECT_ROOT / 'vis' / 'tfidf_perturbation_test.csv'
-DEFAULT_SUMMARY_JSON = PROJECT_ROOT / 'vis' / 'tfidf_perturbation_summary.json'
-DEFAULT_ACCURACY_PLOT = PROJECT_ROOT / 'vis' / 'tfidf_perturbation_accuracy_drop.png'
-DEFAULT_CONFIDENCE_PLOT = PROJECT_ROOT / 'vis' / 'tfidf_perturbation_confidence_drop.png'
+DEFAULT_MODEL_PATH = TFIDF_ROOT / 'outputs' / 'tfidf_mlp_model.pt'
+DEFAULT_VECTORIZER_PATH = TFIDF_ROOT / 'outputs' / 'tfidf_vectorizer.pkl'
+DEFAULT_VIS_DIR = TFIDF_ROOT / 'vis'
+DEFAULT_LRP_GLOBAL_PATH = DEFAULT_VIS_DIR / 'tfidf_lrp_global.csv'
+DEFAULT_IG_GLOBAL_PATH = DEFAULT_VIS_DIR / 'tfidf_integrated_gradients_global.csv'
+
+METHOD_LABELS = {
+    'ig': 'Integrated Gradients',
+    'lrp': 'LRP',
+    'intersection': 'IG and LRP intersection',
+}
 
 
 def load_runtime_dependencies():
@@ -112,36 +115,44 @@ def parse_args():
         help='Path to global Integrated Gradients explanation terms.',
     )
     parser.add_argument(
+        '--output_dir',
+        '--output-dir',
+        dest='output_dir',
+        type=Path,
+        default=DEFAULT_VIS_DIR,
+        help='Directory for dynamically named perturbation outputs.',
+    )
+    parser.add_argument(
         '--output_csv',
         '--output-csv',
         dest='output_csv',
         type=Path,
-        default=DEFAULT_OUTPUT_CSV,
-        help='Path for perturbation row-level CSV output.',
+        default=None,
+        help='Optional explicit path for perturbation row-level CSV output.',
     )
     parser.add_argument(
         '--summary_json',
         '--summary-json',
         dest='summary_json',
         type=Path,
-        default=DEFAULT_SUMMARY_JSON,
-        help='Path for perturbation summary JSON output.',
+        default=None,
+        help='Optional explicit path for perturbation summary JSON output.',
     )
     parser.add_argument(
         '--accuracy_plot',
         '--accuracy-plot',
         dest='accuracy_plot',
         type=Path,
-        default=DEFAULT_ACCURACY_PLOT,
-        help='Path for before/after accuracy plot.',
+        default=None,
+        help='Optional explicit path for before/after accuracy plot.',
     )
     parser.add_argument(
         '--confidence_plot',
         '--confidence-plot',
         dest='confidence_plot',
         type=Path,
-        default=DEFAULT_CONFIDENCE_PLOT,
-        help='Path for confidence drop plot.',
+        default=None,
+        help='Optional explicit path for confidence drop plot.',
     )
     parser.add_argument(
         '--device',
@@ -153,6 +164,31 @@ def parse_args():
 
 def ensure_parent_dir(path):
     Path(path).parent.mkdir(parents=True, exist_ok=True)
+
+
+def make_run_slug(method, mode, n_texts, n_texts_per_class, n_terms):
+    return (
+        f'method-{method}_mode-{mode}_docs-{n_texts}'
+        f'_per-class-{n_texts_per_class}_terms-{n_terms}'
+    )
+
+
+def resolve_output_paths(args, n_texts):
+    slug = make_run_slug(
+        args.method,
+        args.mode,
+        n_texts,
+        args.n_texts_per_class,
+        args.n_terms,
+    )
+    output_dir = args.output_dir
+
+    return {
+        'output_csv': args.output_csv or output_dir / f'tfidf_perturbation_rows_{slug}.csv',
+        'summary_json': args.summary_json or output_dir / f'tfidf_perturbation_summary_{slug}.json',
+        'accuracy_plot': args.accuracy_plot or output_dir / f'tfidf_perturbation_accuracy_drop_{slug}.png',
+        'confidence_plot': args.confidence_plot or output_dir / f'tfidf_perturbation_confidence_drop_{slug}.png',
+    }
 
 
 def resolve_device(device_name):
@@ -247,13 +283,13 @@ def intersect_terms(primary_terms, secondary_terms):
 
 
 def get_terms_by_method(method, lrp_path, ig_path, n_terms):
+    if method == 'lrp':
+        return load_global_terms(lrp_path, n_terms)
+    if method == 'ig':
+        return load_global_terms(ig_path, n_terms)
+
     lrp_terms = load_global_terms(lrp_path, n_terms)
     ig_terms = load_global_terms(ig_path, n_terms)
-
-    if method == 'lrp':
-        return lrp_terms
-    if method == 'ig':
-        return ig_terms
     return intersect_terms(lrp_terms, ig_terms)
 
 
@@ -391,7 +427,7 @@ def class_accuracy(rows_df, class_label, column):
     return float(subset[column].mean())
 
 
-def build_summary(rows_df, method, mode, n_terms, terms_by_class):
+def build_summary(rows_df, method, mode, n_terms, n_texts_per_class, terms_by_class):
     accuracy_before = float(rows_df['correct_before'].mean())
     accuracy_after = float(rows_df['correct_after'].mean())
     confidence_drop_values = (
@@ -405,6 +441,11 @@ def build_summary(rows_df, method, mode, n_terms, terms_by_class):
         'n_terms_used': {
             'homme': len(terms_by_class['homme']),
             'femme': len(terms_by_class['femme']),
+        },
+        'n_texts_per_class_requested': int(n_texts_per_class),
+        'selected_texts_by_class': {
+            str(class_label): int(count)
+            for class_label, count in rows_df['true_label'].value_counts().items()
         },
         'n_texts': int(len(rows_df)),
         'accuracy_before_perturbation': accuracy_before,
@@ -432,6 +473,21 @@ def save_json(obj, path):
         json.dump(obj, f, ensure_ascii=False, indent=2)
 
 
+def build_plot_title(summary, metric_name):
+    method_label = METHOD_LABELS.get(
+        summary['explanation_method'],
+        summary['explanation_method'],
+    )
+    n_terms_used = summary['n_terms_used']
+    return (
+        f'TF-IDF perturbation {metric_name}\n'
+        f'method={method_label} | mode={summary["perturbation_mode"]}\n'
+        f'docs={summary["n_texts"]} | requested/class={summary["n_texts_per_class_requested"]} | '
+        f'terms={summary["n_terms_requested"]} | '
+        f'used terms: homme={n_terms_used["homme"]}, femme={n_terms_used["femme"]}'
+    )
+
+
 def save_accuracy_plot(summary, output_path):
     labels = ['Before', 'After']
     values = [
@@ -439,14 +495,24 @@ def save_accuracy_plot(summary, output_path):
         summary['accuracy_after_perturbation'],
     ]
 
-    plt.figure(figsize=(6, 5))
+    plt.figure(figsize=(9, 6))
     plt.bar(labels, values, color=['#4C78A8', '#F58518'])
-    plt.ylim(0, 1)
+    plt.ylim(0, 1.1)
     plt.ylabel('Accuracy')
-    plt.title('TF-IDF perturbation accuracy')
+    plt.title(build_plot_title(summary, 'accuracy drop'), fontsize=10, pad=12)
     for index, value in enumerate(values):
-        plt.text(index, min(value + 0.02, 1.0), f'{value:.3f}', ha='center')
-    plt.tight_layout()
+        plt.text(index, value + 0.025, f'{value:.3f}', ha='center')
+    plt.figtext(
+        0.5,
+        0.01,
+        (
+            f'Accuracy drop: {summary["accuracy_drop"]:.3f} | '
+            f'Flipped predictions: {summary["number_of_flipped_predictions"]}'
+        ),
+        ha='center',
+        fontsize=9,
+    )
+    plt.tight_layout(rect=(0, 0.07, 1, 0.96))
     ensure_parent_dir(output_path)
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.close()
@@ -459,14 +525,21 @@ def save_confidence_plot(summary, output_path):
         summary['mean_perturbed_confidence'],
     ]
 
-    plt.figure(figsize=(6, 5))
+    plt.figure(figsize=(9, 6))
     plt.bar(labels, values, color=['#54A24B', '#E45756'])
-    plt.ylim(0, 1)
+    plt.ylim(0, 1.1)
     plt.ylabel('Mean predicted-class confidence')
-    plt.title('TF-IDF perturbation confidence')
+    plt.title(build_plot_title(summary, 'confidence drop'), fontsize=10, pad=12)
     for index, value in enumerate(values):
-        plt.text(index, min(value + 0.02, 1.0), f'{value:.3f}', ha='center')
-    plt.tight_layout()
+        plt.text(index, value + 0.025, f'{value:.3f}', ha='center')
+    plt.figtext(
+        0.5,
+        0.01,
+        f'Mean confidence drop: {summary["confidence_drop"]:.3f}',
+        ha='center',
+        fontsize=9,
+    )
+    plt.tight_layout(rect=(0, 0.07, 1, 0.96))
     ensure_parent_dir(output_path)
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.close()
@@ -512,6 +585,7 @@ def main():
     )
     if selected_df.empty:
         raise ValueError('No correctly classified homme/femme texts were selected.')
+    output_paths = resolve_output_paths(args, len(selected_df))
 
     perturbed_texts, changed_terms_by_row = make_perturbed_texts(
         selected_df,
@@ -535,18 +609,25 @@ def main():
         args.mode,
         args.method,
     )
-    summary = build_summary(rows_df, args.method, args.mode, args.n_terms, terms_by_class)
+    summary = build_summary(
+        rows_df,
+        args.method,
+        args.mode,
+        args.n_terms,
+        args.n_texts_per_class,
+        terms_by_class,
+    )
 
-    ensure_parent_dir(args.output_csv)
-    rows_df.to_csv(args.output_csv, index=False, encoding='utf-8')
-    save_json(summary, args.summary_json)
-    save_accuracy_plot(summary, args.accuracy_plot)
-    save_confidence_plot(summary, args.confidence_plot)
+    ensure_parent_dir(output_paths['output_csv'])
+    rows_df.to_csv(output_paths['output_csv'], index=False, encoding='utf-8')
+    save_json(summary, output_paths['summary_json'])
+    save_accuracy_plot(summary, output_paths['accuracy_plot'])
+    save_confidence_plot(summary, output_paths['confidence_plot'])
 
-    print(f'Saved perturbation rows: {args.output_csv}')
-    print(f'Saved summary: {args.summary_json}')
-    print(f'Saved accuracy plot: {args.accuracy_plot}')
-    print(f'Saved confidence plot: {args.confidence_plot}')
+    print(f'Saved perturbation rows: {output_paths["output_csv"]}')
+    print(f'Saved summary: {output_paths["summary_json"]}')
+    print(f'Saved accuracy plot: {output_paths["accuracy_plot"]}')
+    print(f'Saved confidence plot: {output_paths["confidence_plot"]}')
     print('Interpretation: drops in accuracy/confidence support explanation faithfulness to this model.')
     print('These results show what the classifier learned, not universal male/female writing rules.')
 
