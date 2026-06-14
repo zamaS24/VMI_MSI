@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TF-IDF LRP Text Highlight</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --border: #d8dee4;
+      --text: #1f2328;
+      --muted: #667085;
+      --positive: #2f7d4f;
+      --negative: #b42318;
+      --surface: #f6f8fa;
+    }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--text);
+      background: #ffffff;
+    }
+    header {
+      padding: 22px 28px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+    .subtitle, .path, .warning {
+      margin: 4px 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 380px;
+      gap: 24px;
+      padding: 24px 28px;
+      align-items: start;
+    }
+    .text {
+      max-width: 980px;
+      white-space: pre-wrap;
+      line-height: 1.72;
+      font-size: 16px;
+    }
+    .hit {
+      border-radius: 3px;
+      padding: 1px 3px;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+      cursor: help;
+    }
+    .hit.positive {
+      border-bottom: 2px solid var(--positive);
+    }
+    .hit.negative {
+      border-bottom: 2px solid var(--negative);
+    }
+    aside {
+      position: sticky;
+      top: 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+    }
+    aside h2 {
+      margin: 0;
+      padding: 14px 16px;
+      font-size: 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--border);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      color: var(--muted);
+      font-weight: 600;
+      background: #fbfbfc;
+    }
+    tr.positive td:nth-child(2) {
+      color: var(--positive);
+      font-weight: 700;
+    }
+    tr.negative td:nth-child(2) {
+      color: var(--negative);
+      font-weight: 700;
+    }
+    @media (max-width: 980px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+      aside {
+        position: static;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>TF-IDF Text Highlight</h1>
+    <p class="subtitle">Method: LRP | Scope: local | Class terms: homme | True label: homme | Prediction: homme | Confidence: 0.9978</p>
+    <p class="path">data\datasetSujet3\content\dataset\test\(A.D.G.)(0)(juste un rigolo)(1)(1977)(1947)(2004)(fr)(z)(z)(V)(R)(T).txt</p>
+    <p class="warning">Text was truncated by --max_chars for readability.</p>
+  </header>
+  <main>
+    <article class="text">a . d . g . juste un rigolo éditions gallimard , . i l immeuble n était pas assez haut pour avoir eu droit à un ascenseur et je dus me coltiner les quatre étages à pied . en bas , le gardien avait été formel et je sais m y prendre avec les clébards d achélèmes . je les regarde droit dans les yeux , <mark class="hit negative" style="background:rgba(214, 91, 91, 0.207)" title="légèrement | negative | score=-0.706293 | rank=15">légèrement</mark> insolent , un peu raide comme si une vieille blessure me taquinait au printemps mais que je ne veuille pas le faire voir et je dis : yeutnant <mark class="hit negative" style="background:rgba(214, 91, 91, 0.245)" title="joseph | negative | score=-1.67592 | rank=3">joseph</mark> pinto , nièmpima derechef , ils rectifient la position ce sont tous ou d anciens militaires ou des <mark class="hit positive" style="background:rgba(73, 157, 112, 0.263)" title="gendarmes | positive | score=2.13382 | rank=4">gendarmes</mark> à la retraite et se mettent avec joie à ma disposition . je leur explique alors que j ai quitté l armée et que je fais maintenant dans le détective privé . ça marche à tous les coups . investi à la fois d une auréole hiérarchique et d un soupçon de flicardise , ils me donnent sans rechigner les renseignements dont j ai besoin . donc celui là avait été formel : <mark class="hit positive" style="background:rgba(73, 157, 112, 0.298)" title="marcellin | positive | score=3.03828 | rank=3">marcellin</mark> bigaille ? vu , mon yeutnant ! insolent , sale , débauché ! ses gosses , de véritables voyous ! sa femme , une pouf , sauf votre respect mon yeutnant ! travaille pas mais boit . graine de coco et gibier de potence . quatrième étage gauche , escalier a . merci , mon vieux , dis je , et il prit la position du repos . je notai sur mon carnet : glou glou . je déteste faire des enquêtes d embauche , principalement dans les zup mais c est ce qui me permet de vivre , ça et les cocus . à tout prendre , je préfère d ailleurs les cocus avec leur côté attendrissant à force d inquiétude . non seulement ils paient bien , les cocus , mais en outre , leur femme est parfois jolie et ils se retrouvent doublement cocus . en revanche , je les rassure . le gardien attendait la fin de mes cogitations . après quoi , il me dénoncerait tout son bloc , en particulier les moujingues qui le traitent de vieux con , les bébés qui marchent sur les pelouses , les vendeurs d huma , les pieds noirs qui font des merguez fenêtres ouvertes et les bonnes femmes qui secouent leur panier à salade sur le balcon . oké , dis je avec un mâle sourire . quatrième gauche . merci , mon vieux . j aurai des choses à vous raconter quand vous redescendrez , mon yeutnant , me souffla t il quand il me vit enquiller vers l escalier a . yspasse de drôles de trucs par ici je lui indiquai du pouce ma simca chrysler garée place surcouf en lui recommandant d avoir l oeil et le bon ! sur elle . un jour comme ça , à vendôme , j avais laissé sans surveillance mon ancienne d . s . sur un parking d achélème . je l avais retrouvée montée sur des parpaings et délestée de ses quatre roues . il y a de drôles de rapides dans ce coin là . j étais un peu essoufflé en arrivant au quatrième étage . si le gardien m avait vu , il aurait eu une cruelle déception en constatant qu un prétendu ex yeutnant du nièmpima pouvait pas grimper un escalier sans que les yeux lui sortent de la tête . mon client , <mark class="hit positive" style="background:rgba(73, 157, 112, 0.298)" title="marcellin | positive | score=3.03828 | rank=3">marcellin</mark> bigaille postulait pour une place d o . s . dans une fabrique de roulements à billes mais maintenant les patrons sont sacrément malins . moyennant un forfait , ils engagent des zèbres dans mon genre pour savoir à quelle espèce de prolos ils vont avoir affaire . pour réussir dans ce boulot , il faut avoir les cheveux courts je les ai , pas de barbe je n en ai que des fausses , une honnête carrure voui et leur tenir des propos raisonnablement anticommunistes moi , je suis primaire mais je cache mon jeu . je regardai par le balcon commun à l étage : en bas , le gardien exprimait dans une attitude digne de l antique qu il faudrait lui passer sur le corps si on voulait seulement effleurer ma deuche . tout autour , mornes comme des pains de glace tombés dans la sciure , des immeubles semblables à celui ci . plus loin , la vieille ville on voyait le château où guise trépassa et l église saint nicolas . un petit bout de loire avec une drague suceuse en plein pâtés de sable et point , le panorama de la zup de <mark class="hit negative" style="background:rgba(214, 91, 91, 0.204)" title="blois | negative | score=-0.628916 | rank=20">blois</mark> donnait envie de se coucher à l ombre d un parcmètre en croquant des boulons filetés . remarquez , je ne dis pas que je gagne mal ma vie : les capitalistes plus les cocus abondent , même à <mark class="hit negative" style="background:rgba(214, 91, 91, 0.204)" title="blois | negative | score=-0.628916 | rank=20">blois</mark> , même dans le loir et cher . je ne dis pas non plus que je m ennuie : il m est arrivé de me faire casser la gueule par un amant vindicatif , il y a des constats d adultère qui valent un film suédois et je préfère vivre en province plutôt qu à paris . mais il y a en moi une sorte de tendance à l intemporalité que mon mètre quatre vingts et mes quatre vingt dix kilos ne laissent pas supposer . ma secrétaire me le dit toujours : monsieur pinto , vous êtes comme qui dirait un poète catcheur . outre le fait que jamais je n ai pratiqué le catch as can catch , même pas le karaté qui vous pose son homme mieux qu une licence de lettres , je n ai qu un goût médiocre pour la poésie qui vous bouffe la moitié du papier puisqu on ne va pas jusqu au bout des lignes et ce que je voudrais écrire , ce sont des romans policiers . malheureusement , ce n est pas avec le genre de boulot que j exerce que j y arriverai . ou alors en faisant preuve de beaucoup d imagination . à ce moment , me déboula dans les pattes une meute hurlante d enfants basanés chevauchant des alezans particulièrement manchàbalesques . ceux qui prétendent que les arabes élèvent chez eux des moutons et des chèvres sont d abominables racistes , relevant à la fois des foudres de la l . i . c . a . et du courroux de la s . p . a . dans les achélèmes , les arabes élèvent surtout des enfants dont , hélas , ils n ont pas coutume de faire des méchouis . je laissai passer la charge de la brigade berbère et allai frapper à la porte de droite . tiens , vous ne pensiez tout de même pas que je risquais de me pointer chez le bigaille <mark class="hit positive" style="background:rgba(73, 157, 112, 0.298)" title="marcellin | positive | score=3.03828 | rank=3">marcellin</mark> pour lui demander s il était un bon ouvrier , aimant les roulements à billes par dessus tout et non affligé d idées subversives ou pire , avancées ! non , j allais chasser le voisin ou la voisine , après quoi , j irais faire un petit tour à la sécu , donnerais quelques coups de <mark class="hit negative" style="background:rgba(214, 91, 91, 0.250)" title="téléphone | negative | score=-1.79899 | rank=2">téléphone</mark> aux anciens employeurs du sieur bigaille et ferais taper par <mark class="hit negative" style="background:rgba(214, 91, 91, 0.630)" title="brigitte | negative | score=-11.6326 | rank=1">brigitte</mark> , ma secrétaire , un rapport de deux feuillets , sec comme un coup de trique , uniquement informatif et sans idées personnelles . on me dit d entrer , et je faillis trébucher sur un môme qui , assis sur son pot de chambre dans l entrée , tournait sur lui même comme un derviche nain . aux traces sur le daliflex , il devait essayer toute la sainte journée de battre des records de vitesse , le cul collé à son popot , en glissant de la salle de séjour jusqu à la porte d entrée . skecé ? fit un grand type pas rasé en apparaissant dans le couloir . il devait regarder aujourd hui <mark class="hit negative" style="background:rgba(214, 91, 91, 0.239)" title="madame | negative | score=-1.52279 | rank=5">madame</mark> à la télé , parce qu il n avait pas l air très éveillé et en entendant la voix assourdie de paul guth , je compris la certaine langueur qui ornait ses yeux chassieux . son tricot de corps dévoilait des biceps que je n aurais pas aimé rencontrer au détour d un bois et ça n était pas parce qu il traînait ses pieds dans des pantoufles qu il fallait en conclure qu il n était pas très nerveux . assurances , déglutis je . je préfère tomber sur les bonnes femmes , non pas pour ce que vous croyez , mais parce qu elles ont toujours quelques salées vacheries à débiter sur le compte du voisin , et surtout de la voisine . les types , on ne sait jamais : ou ils se bagarrent avec le voisin , ou ils prennent l apéro ensemble , d où ma remarquable ruse à propos des assurances . j ai frappé chez votre voisin , <mark class="hit positive" style="background:rgba(73, 157, 112, 0.298)" title="marcellin | positive | score=3.03828 | rank=3">marcellin</mark> bigaille , dis je . il n est pas là , alors je me suis dit une espèce de lueur d intelligence naquit sur son visage de brute et un fin sourire compléta l impression . ah ouais , dit il , <mark class="hit positive" style="background:rgba(73, 157, 112, 0.298)" title="marcellin | positive | score=3.03828 | rank=3">marcellin</mark> bigaille , mon voisin ! il m octroya un geste de politesse un peu désuet pour m inviter à entrer dans la salle de séjour et le gamin sur son pot nous suivit en faisant des bruits de locomotive qui couvraient heureusement l insupportable crissement du plastique sur le daliflex . à la télé , c était bien guth , je ne vous dis que ça . vous lui voulez quoi au bigaille ? demanda le colosse en se laissant tomber sur un divan compatissant autour duquel trônaient une demi douzaine de bouteilles de vin à l amiante religieuse qui est l opium du peuple . assurances , dis je encore . il veut souscrire une assurance et je dois chercher des heu renseignements sur lui . bigaille veut pas d assurance , dit il . bigaille pas con . vous êtes un ami à lui , peut être ? hasardai je . un <mark class="hit positive" style="background:rgba(73, 157, 112, 0.219)" title="pote | positive | score=1.01134 | rank=18">pote</mark> , quoi ? le môme tournait maintenant autour de moi , comme un indien bigarré de crasse autour d un poteau de couleur blême . j imaginais qu il était définitivement collé sur son pot , que le <mark class="hit negative" style="background:rgba(214, 91, 91, 0.219)" title="machin | negative | score=-0.997654 | rank=9">machin</mark> grandirait en même temps que lui et que plus tard , ça le protégerait des coups de pied au cul de la vie . son gentil <mark class="hit negative" style="background:rgba(214, 91, 91, 0.209)" title="papa | negative | score=-0.754369 | rank=14">papa</mark> déboucha une bouteille , m en proposa d une saccade de la tête et , satisfait de mon refus , s en versa un plein verre culotté qu il pêcha sous un coussin . des renseignements , hein ? dit il après avoir dégluti . de quel genre ? ben vous voyez si il est en bonne santé , si il boit pas je veux dire s il n a pas de maladies , si il est travailleur et tout ça , quoi ! dans mon dos , paul guth faisait des ronds de jambe vocaux et le môme s accrochait à mon pantalon pour se mettre debout . je n osais imaginer ce qui arriverait s il y parvenait et ce qui éclabousserait mon futal . le type empoigna une bouteille vide et j espérai que ça n était qu un réflexe d ivrogne . travailleur , hein ? dit il en me regardant droit dans les pectoraux . dieu merci , le môme s était rassis et partait en direction de la chambre quand la bouteille explosa contre le mur , à dix centimètres de ma tête , que le type se leva en gueulant qu il était <mark class="hit positive" style="background:rgba(73, 157, 112, 0.298)" title="marcellin | positive | score=3.03828 | rank=3">marcellin</mark> bigaille et qu il emmerdait les flics de mon espèce et qu il allait me faire la peau . dieu encore merci , il était ivrogne mais fauché et , conséquent avec lui même , il ne m avait pas balancé à la tronche la bouteille qui contenait encore du vin . je battis en retraite . dans un coin , le môme applaudissait et trépignait du cu cul . une autre bouteille rebondit d un mur à l autre du couloir et un éclat se ficha dans mon front . licorne agile , j ouvris la porte et me jetai dans l escalier , un mince filet de sang me coulant sur l oeil gauche . les vociférations de <mark class="hit positive" style="background:rgba(73, 157, 112, 0.298)" title="marcellin | positive | score=3.03828 | rank=3">marcellin</mark> bigaille , qui allait sans doute rester encore longtemps chômedu , me poursuivirent jusqu en bas et toute ma parenté fut créditée de belles manières . il est pas facile , spas ? me dit le gardien alors que j arrivais à ma voiture en m essuyant le front avec mon mouchoir . voulez que j appelle police secours , mon yeutnant ? je le fixai froidement . conament reconnaissez vous votre droite de votre gauche , mon vieux ? au bras où est fixée votre montre ? il parut étonné , tâta sa montre et quand je lui expliquai en détachant bien les mots que <mark class="hit positive" style="background:rgba(73, 157, 112, 0.298)" title="marcellin | positive | score=3.03828 | rank=3">marcellin</mark> bigaille habitait au quatrième droit et non gauche , il fit un effort de réflexion assez intense : je vois ce que c est , dit il enfin et en se marrant d un air à la fois désabusé et subreptice . quand je monte l escalier , arrivé à l étage , je me retourne pour voir si un foutu gamin m a pas suivi pour me faire une blague . du coup , je constate tout à l envers , par le fait . imaginez vous qu une fois , ils m ont lancé des oeufs pourris dans le dos et que les frais de nettoyage d uniforme ont été à ma charge , alors je montai dans ma voiture et constatai les dégâts frontaux dans le rétroviseur : rien de grave , mais j avais du sang plein les sourcils . le garde se pencha vers moi alors que j allais fermer la portière . mais je comprends pas , dit il . par le fait , vous êtes bien tombé chez bigaille et c est ce que vous vouliez , non ? et merde , conclus je en lui claquant la portière au nez . ii je patientais au feu rouge du rond point de cabochon quand mon radio <mark class="hit negative" style="background:rgba(214, 91, 91, 0.250)" title="téléphone | negative | score=-1.79899 | rank=2">téléphone</mark> grésilla doucement . ça n est pas que j en ai un besoin impératif , mais ça impressionne les capitalistes . les cocus , moins . en tout et pour tout , depuis six mois que j avais fait installer à grands frais cet engin dans ma voiture , j avais dû recevoir quatre coups de bigorneau , tous donnés par <mark class="hit negative" style="background:rgba(214, 91, 91, 0.630)" title="brigitte | negative | score=-11.6326 | rank=1">brigitte</mark> qui me demandait où étaient rangés les carbones et si elle pouvait rentrer plus tôt chez elle attendu qu on passait un film avec fred astaire à la télévision . moi même , je téléphonais parfois à l horloge parlante pour frimer un peu dans les rares embouteillages blésois ou pour lever une ponette . je décrochai alors que le feu passait au vert , m emmêlai un peu les pattes dans les fils , essayai d enclencher la première de la main gauche et un abruti me claquesonna impérativement . un <mark class="hit negative" style="background:rgba(214, 91, 91, 0.250)" title="téléphone | negative | score=-1.79899 | rank=2">téléphone</mark> dans une voiture ou une décapotable , il n y a rien qui énerve autant les conducteurs de traîne cons . j arrivai enfin à faire tout à la fois , téléphoner et conduire en descendant l avenue gambetta et , sans surprise , je reconnus la voix de ma secrétaire . monsieur pinto , il y a un monsieur qui vous attend au bureau . un k ou un c ? je savais que le type était tout à côté de <mark class="hit negative" style="background:rgba(214, 91, 91, 0.630)" title="brigitte | negative | score=-11.6326 | rank=1">brigitte</mark> , pour la raison que son bureau sert de salle d attente . k , c est kapitalistes , c , c est cocus . peut être les deux , dit elle en rigolant . je suis là dans cinq minutes , dis je d une voix subséquente . faites le entrer dans mon bureau . devant la gare , je pris l avenue victor hugo , passai devant le château où périt guise et arrivai , quatre minutes plus tard , dans la rue du bourg neuf où sont , dans le bas , mes bureaux . une très discrète plaque de cuivre qu astique avec talent la femme de ménage , annonce mon nom et mon état , ainsi qu une de mes qualités : <mark class="hit negative" style="background:rgba(214, 91, 91, 0.245)" title="joseph | negative | score=-1.67592 | rank=3">joseph</mark> pinto , enquêtes , filatures , discrétion . je gare ma voiture devant la boutique d un remarquable sellier qui fait aussi partie de l harmonique blésoise et j entre chez moi . dans le petit corridor , un escalier part vers le premier étage où je possède un appartement tt conf . mod . tél . s . de b . kitchn . moq . et à droite une porte qui donne sur les deux bureaux . vous pourriez aussi bien taper avec votre nez , dis je à <mark class="hit negative" style="background:rgba(214, 91, 91, 0.630)" title="brigitte | negative | score=-11.6326 | rank=1">brigitte</mark> qui se vernissait les ongles , la paume bien étalée sur la machine à écrire . elle me rit au mien sans interrompre sa tâche . on ne peut pas dire de <mark class="hit negative" style="background:rgba(214, 91, 91, 0.630)" title="brigitte | negative | score=-11.6326 | rank=1">brigitte</mark> qu elle soit insolente . mutine serait plus juste , ou impertinente . moi , je la trouve jolie , certains de mes amis aussi et j en suis plutôt content . elle pige vite , peut être est elle un peu brouillonne , mais je ne traite pas tellement d affaires qu elle puisse devenir catastrophique . à ma connaissance , elle n a personne dans sa vie ou alors elle est très discrète à ce sujet , je sais qu elle aime les comédies musicales américaines et qu elle va parfois jusqu à tours pour n en rater aucune au ciné club . si c est un c , dit elle en montrant la porte capitonnée du pouce , alors sa femme a tort . si c est un k , j aimerais bien être sa secrétaire . bel homme ou très friqué ? demandai je . les deux , dit elle en souriant et en agitant sa main droite pour faire sécher plus vite la nuancée couleur abricot de ses ongles . elle se leva et écarta les rideaux de la fenêtre qui donne sur la rue du bourg neuf . elle me désigna une grosse <mark class="hit positive" style="background:rgba(73, 157, 112, 0.234)" title="mercédès | positive | score=1.39644 | rank=11">mercédès</mark> blanche . la charrette de monsieur il a dit son nom ? non . confidentiel . il a dû voir discrétion sur mes pub et ne plus rien comprendre quand il vous a vue . je poussai la porte de mon bureau lequel est décoré d affiches de la guerre de , on les aura d abel faivre , une émouvante alsacienne d hansi qui donne son or aux emprunts de la défense nationale et un gosse de poulbot qui semble impatient de donner sa vie et sa frimousse pour bouter les teutons . le possible client se leva de son fauteuil et me fit face . <mark class="hit negative" style="background:rgba(214, 91, 91, 0.630)" title="brigitte | negative | score=-11.6326 | rank=1">brigitte</mark> avait raison , il pouvait tout aussi bien être c ou k ou ne pas être et quelle que soit la raison qui l amenait chez moi , elle était mûrement réfléchie . il devait avoir dans les cinquante ans bien conservés , tennis , golf et ski ou lampe à bronzer , les cheveux <mark class="hit negative" style="background:rgba(214, 91, 91, 0.207)" title="légèrement | negative | score=-0.706293 | rank=15">légèrement</mark> bleutés , le regard droit et un excellent tailleur . après m avoir examiné un dizième de seconde , il me serra la main et se présenta d une voix grave et posée : <mark class="hit negative" style="background:rgba(214, 91, 91, 0.219)" title="edmond | negative | score=-1.00365 | rank=8">edmond</mark> <mark class="hit positive" style="background:rgba(73, 157, 112, 0.251)" title="cloche | positive | score=1.84197 | rank=7">cloche</mark> . cela devait être le drame de sa vie , un truc pareil . il était presque parfait mais avec ce nom qui sonnait à toute volée , ça entamait un peu son impeccable image de marque . néanmoins , il avait eu la force de caractère de n en point changer et d assumer , comme on dit aujourd hui , ce patronyme cocasse . chapeau , <mark class="hit positive" style="background:rgba(73, 157, 112, 0.251)" title="cloche | positive | score=1.84197 | rank=7">cloche</mark> , si je puis me permettre mais je ne me le permis pas . je le priai de s asseoir et me glissai derrière mon burlingue où <mark class="hit negative" style="background:rgba(214, 91, 91, 0.630)" title="brigitte | negative | score=-11.6326 | rank=1">brigitte</mark> avait ordre de déposer chaque jour une rose rouge dans un vase col de cygne . je possède une usine de pâte à papier dans la région parisienne , dit il . puis il me fixa attentivement et désigna ma tête d un ongle carré : vous êtes bagarreur ? je mis un instant à comprendre que j avais oublié d enlever complètement le sang qui caillait mes sourcils . non , dis je , pas tellement . mais l autre l était . excusez moi un instant . je sortis et me plantai devant <mark class="hit negative" style="background:rgba(214, 91, 91, 0.630)" title="brigitte | negative | score=-11.6326 | rank=1">brigitte</mark> qui tapait enfin un rapport pour une société de crédit . vous n auriez pas pu me dire , <mark class="hit positive" style="background:rgba(73, 157, 112, 0.376)" title="fis | positive | score=5.05416 | rank=2">fis</mark> je en montrant mon front . quoi ? oh , dit elle , vous avez du sang dans les sourcils . merci du ren saignement , dis je finement comme si j étais un héros de carter brown . regardez dans l annuaire de la région parisienne par professions si vous trouvez une usine <mark class="hit positive" style="background:rgba(73, 157, 112, 0.251)" title="cloche | positive | score=1.84197 | rank=7">cloche</mark> qui fait de la pâte à papier . <mark class="hit positive" style="background:rgba(73, 157, 112, 0.251)" title="cloche | positive | score=1.84197 | rank=7">cloche</mark> , c l o c h e . j avais compris , dit elle un peu pincée . je montai dare dare jusqu à ma s . de b . , me nettoyai et je redescendis comme si l infernal bigaille était encore à mes trousses . <mark class="hit negative" style="background:rgba(214, 91, 91, 0.630)" title="brigitte | negative | score=-11.6326 | rank=1">brigitte</mark> me fit un signe d acquiescement et me désigna sur l annuaire une ligne consacrée à l usine <mark class="hit positive" style="background:rgba(73, 157, 112, 0.251)" title="cloche | positive | score=1.84197 | rank=7">cloche</mark> . téléphonez , dis je et demandez si m . <mark class="hit negative" style="background:rgba(214, 91, 91, 0.219)" title="edmond | negative | score=-1.00365 | rank=8">edmond</mark> <mark class="hit positive" style="background:rgba(73, 157, 112, 0.251)" title="cloche | positive | score=1.84197 | rank=7">cloche</mark> est là . si il y est , raccrochez et venez m apporter un dossier à signer . je rentrai dans le bureau où <mark class="hit negative" style="background:rgba(214, 91, 91, 0.219)" title="edmond | negative | score=-1.00365 | rank=8">edmond</mark> <mark class="hit positive" style="background:rgba(73, 157, 112, 0.251)" title="cloche | positive | score=1.84197 | rank=7">cloche</mark> attendait patiemment . il ne fumait pas , ne se tortillait pas les doigts , ne caressait pas son menton comme font les gens qui poireautent chez le docteur , chez l avocat ou chez les privés . je m excusai à nouveau , m assis et pris mon air le plus professionnel et le plus confesseur . j avais comme l impression que ce particulier là allait me faire sortir un peu de ma routine . ces choses se sentent et je ne fus pas déçu . avez vous entendu parler du hold up de nantes ? demanda t il . oui , dis je , un peu surpris . plus d un <mark class="hit positive" style="background:rgba(73, 157, 112, 0.225)" title="milliard | positive | score=1.16972 | rank=14">milliard</mark> d anciens francs qui se sont fait la paire par les égouts , il y a deux mois environ . exact , confirma t il . d ailleurs , à parler comme les journalistes , ce n est pas un hold up mais un casse . il se trouve que mon gendre est suspecté , avec raison , semble t il , d avoir organisé cette affaire . <mark class="hit negative" style="background:rgba(214, 91, 91, 0.213)" title="jacques | negative | score=-0.858371 | rank=13">jacques</mark> meynant ? le cerveau du casse de nantes ? c est votre gendre ? c est ce que je viens de vous dire . comme tout le monde , j avais lu l histoire dans les journaux : un commando d une dizaine de types avait travaillé un mois dans les égouts , ils s étaient faufilés jusque sous la chambre forte d une importante banque nationalisée , avaient soulevé le plancher d acier de ladite chambre pas si forte que ça avec des crics super puissants et s étaient attriqués tout le contenu qui attendait un transfert pour la banque de france . à cause de l imprudence d un de ses complices qui avait acheté trop d outils dans la même quincaillerie , les flics étaient remontés jusqu à <mark class="hit negative" style="background:rgba(214, 91, 91, 0.213)" title="jacques | negative | score=-0.858371 | rank=13">jacques</mark> meynant , fils de bonne famille <mark class="hit negative" style="background:rgba(214, 91, 91, 0.207)" title="légèrement | negative | score=-0.706293 | rank=15">légèrement</mark> dévoyé , ancien champion de france de <mark class="hit positive" style="background:rgba(73, 157, 112, 0.255)" title="water | positive | score=1.93281 | rank=6">water</mark> polo . mais le prévoyant gus s était fait la malle avant et , supposait on , avec la totalité du ganot . je me souvenais qu on avait publié dans la presse des photos de sa femme qui m avait semblé assez mignonne et plutôt dépassée par les événements . depuis , son <mark class="hit negative" style="background:rgba(214, 91, 91, 0.207)" title="époux | negative | score=-0.691699 | rank=17">époux</mark> courait toujours et , contrariant , ne semblait pas vouloir se livrer gentiment à la police . dois je compatir</article>
+    <aside>
+      <h2>Highlighted Terms</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Side</th>
+            <th>Term</th>
+            <th>Score</th>
+            <th>TF-IDF</th>
+            <th>Hits</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="positive"><td>1</td><td>positive</td><td>colt</td><td>5.26104</td><td>0.108873</td><td>0</td></tr>
+<tr class="positive"><td>2</td><td>positive</td><td>fis</td><td>5.05416</td><td>0.122218</td><td>1</td></tr>
+<tr class="positive"><td>3</td><td>positive</td><td>marcellin</td><td>3.03828</td><td>0.0841082</td><td>8</td></tr>
+<tr class="positive"><td>4</td><td>positive</td><td>gendarmes</td><td>2.13382</td><td>0.0512519</td><td>1</td></tr>
+<tr class="positive"><td>5</td><td>positive</td><td>grange</td><td>1.95815</td><td>0.0579411</td><td>0</td></tr>
+<tr class="positive"><td>6</td><td>positive</td><td>water</td><td>1.93281</td><td>0.0576027</td><td>1</td></tr>
+<tr class="positive"><td>7</td><td>positive</td><td>cloche</td><td>1.84197</td><td>0.140299</td><td>7</td></tr>
+<tr class="positive"><td>8</td><td>positive</td><td>fusil</td><td>1.65027</td><td>0.047397</td><td>0</td></tr>
+<tr class="positive"><td>9</td><td>positive</td><td>chauve</td><td>1.64004</td><td>0.0411498</td><td>0</td></tr>
+<tr class="positive"><td>10</td><td>positive</td><td>canon</td><td>1.48468</td><td>0.0413873</td><td>0</td></tr>
+<tr class="positive"><td>11</td><td>positive</td><td>mercédès</td><td>1.39644</td><td>0.0507223</td><td>1</td></tr>
+<tr class="positive"><td>12</td><td>positive</td><td>mètres</td><td>1.38006</td><td>0.0215759</td><td>0</td></tr>
+<tr class="positive"><td>13</td><td>positive</td><td>terrassier</td><td>1.23936</td><td>0.0631793</td><td>0</td></tr>
+<tr class="positive"><td>14</td><td>positive</td><td>milliard</td><td>1.16972</td><td>0.061</td><td>1</td></tr>
+<tr class="positive"><td>15</td><td>positive</td><td>crosse</td><td>1.15109</td><td>0.024302</td><td>0</td></tr>
+<tr class="positive"><td>16</td><td>positive</td><td>terrassiers</td><td>1.11295</td><td>0.0477249</td><td>0</td></tr>
+<tr class="positive"><td>17</td><td>positive</td><td>corse</td><td>1.08595</td><td>0.0402395</td><td>0</td></tr>
+<tr class="positive"><td>18</td><td>positive</td><td>pote</td><td>1.01134</td><td>0.0288196</td><td>1</td></tr>
+<tr class="positive"><td>19</td><td>positive</td><td>ferté</td><td>1.00156</td><td>0.0654543</td><td>0</td></tr>
+<tr class="positive"><td>20</td><td>positive</td><td>étang</td><td>0.995882</td><td>0.0612112</td><td>0</td></tr>
+<tr class="negative"><td>1</td><td>negative</td><td>brigitte</td><td>-11.6326</td><td>0.426934</td><td>9</td></tr>
+<tr class="negative"><td>2</td><td>negative</td><td>téléphone</td><td>-1.79899</td><td>0.0581837</td><td>3</td></tr>
+<tr class="negative"><td>3</td><td>negative</td><td>joseph</td><td>-1.67592</td><td>0.0430158</td><td>2</td></tr>
+<tr class="negative"><td>4</td><td>negative</td><td>bains</td><td>-1.56567</td><td>0.0399768</td><td>0</td></tr>
+<tr class="negative"><td>5</td><td>negative</td><td>madame</td><td>-1.52279</td><td>0.0268331</td><td>1</td></tr>
+<tr class="negative"><td>6</td><td>negative</td><td>jacquot</td><td>-1.21692</td><td>0.0520138</td><td>0</td></tr>
+<tr class="negative"><td>7</td><td>negative</td><td>bibliothèque</td><td>-1.0176</td><td>0.0191098</td><td>0</td></tr>
+<tr class="negative"><td>8</td><td>negative</td><td>edmond</td><td>-1.00365</td><td>0.128171</td><td>3</td></tr>
+<tr class="negative"><td>9</td><td>negative</td><td>machin</td><td>-0.997654</td><td>0.156799</td><td>1</td></tr>
+<tr class="negative"><td>10</td><td>negative</td><td>étions</td><td>-0.960998</td><td>0.0295979</td><td>0</td></tr>
+<tr class="negative"><td>11</td><td>negative</td><td>chignon</td><td>-0.920717</td><td>0.0149261</td><td>0</td></tr>
+<tr class="negative"><td>12</td><td>negative</td><td>bottes</td><td>-0.887569</td><td>0.0220536</td><td>0</td></tr>
+<tr class="negative"><td>13</td><td>negative</td><td>jacques</td><td>-0.858371</td><td>0.111587</td><td>2</td></tr>
+<tr class="negative"><td>14</td><td>negative</td><td>papa</td><td>-0.754369</td><td>0.0224688</td><td>1</td></tr>
+<tr class="negative"><td>15</td><td>negative</td><td>légèrement</td><td>-0.706293</td><td>0.0227892</td><td>3</td></tr>
+<tr class="negative"><td>16</td><td>negative</td><td>manteau</td><td>-0.703451</td><td>0.018154</td><td>0</td></tr>
+<tr class="negative"><td>17</td><td>negative</td><td>époux</td><td>-0.691699</td><td>0.0102794</td><td>1</td></tr>
+<tr class="negative"><td>18</td><td>negative</td><td>protéger</td><td>-0.672387</td><td>0.0113999</td><td>0</td></tr>
+<tr class="negative"><td>19</td><td>negative</td><td>virginie</td><td>-0.629826</td><td>0.554498</td><td>0</td></tr>
+<tr class="negative"><td>20</td><td>negative</td><td>blois</td><td>-0.628916</td><td>0.0680759</td><td>2</td></tr>
+        </tbody>
+      </table>
+    </aside>
+  </main>
+</body>
+</html>
