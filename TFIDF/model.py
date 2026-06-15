@@ -1,7 +1,7 @@
 import torch.nn as nn
 
 class MLPNet(nn.Module):
-    def __init__(self, input_dim, hidden_layers=(64, 32), output_dim=2, dropout_rates=0.3):
+    def __init__(self, input_dim, hidden_layers=(64, 32), output_dim=2, dropout_rates=0.2):
         super(MLPNet, self).__init__()
         if isinstance(dropout_rates, float):
             dropout_rates = [dropout_rates] * len(hidden_layers)
