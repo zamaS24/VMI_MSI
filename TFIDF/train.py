@@ -3,13 +3,12 @@ import copy
 from pathlib import Path
 
 
-BATCH_SIZE = 16
-EPOCHS = 5
-LEARNING_RATE = 1e-3
-WEIGHT_DECAY = 1e-2
-HIDDEN_LAYERS = (512, 128, 32)
-DROPOUT_INPUT = 0.35
-DROPOUT_HIDDEN = 0.45
+BATCH_SIZE = 8
+EPOCHS = 50
+LEARNING_RATE = 1e-4
+WEIGHT_DECAY = 1e-4
+HIDDEN_LAYERS = (64, 32)
+DROPOUT_RATES = 0.2
 EARLY_STOPPING_PATIENCE = 2
 EARLY_STOPPING_MIN_DELTA = 1e-4
 OUTPUT_DIM = 2
@@ -445,14 +444,13 @@ def make_metrics(
         'random_seed': RANDOM_SEED,
         'tfidf_params': tfidf_params,
         'model': {
-            'architecture': 'BatchNorm1d + MLP(512, 128, 32) + LayerNorm + GELU',
+            'architecture': 'MLP + BatchNorm1d + ReLU + Dropout',
             'input_dim': len(tfidf.get_feature_names_out()),
             'hidden_layers': HIDDEN_LAYERS,
             'output_dim': OUTPUT_DIM,
-            'dropout_input': DROPOUT_INPUT,
-            'dropout_hidden': DROPOUT_HIDDEN,
+            'dropout_rates': DROPOUT_RATES,
             'uses_batch_norm': True,
-            'uses_layer_norm': True,
+            'uses_layer_norm': False,
         },
         'training': {
             'batch_size': BATCH_SIZE,
@@ -496,14 +494,13 @@ def save_checkpoint(model, path, le, tfidf, tfidf_params):
     torch.save(
         {
             'model_state_dict': model.state_dict(),
-            'architecture': 'BatchNorm1d + MLP(512, 128, 32) + LayerNorm + GELU',
+            'architecture': 'MLP + BatchNorm1d + ReLU + Dropout',
             'input_dim': len(tfidf.get_feature_names_out()),
             'hidden_layers': HIDDEN_LAYERS,
             'output_dim': OUTPUT_DIM,
-            'dropout_input': DROPOUT_INPUT,
-            'dropout_hidden': DROPOUT_HIDDEN,
+            'dropout_rates': DROPOUT_RATES,
             'uses_batch_norm': True,
-            'uses_layer_norm': True,
+            'uses_layer_norm': False,
             'classes': le.classes_.tolist(),
             'class_mapping': dict(zip(le.classes_, range(len(le.classes_)))),
             'tfidf_params': tfidf_params,
@@ -522,7 +519,7 @@ def main():
     plt.rcParams['figure.figsize'] = (14, 8)
     plt.rcParams['font.size'] = 10
 
-    model_path = args.model_path or args.output_dir / 'tfidf_mlp_model.pt'
+    model_path = args.model_path or args.output_dir / 'tf_idf_mlp_model.pt'
     vectorizer_path = args.vectorizer_path or args.output_dir / 'tfidf_vectorizer.pkl'
     metrics_path = args.metrics_path or args.artifact_dir / 'metrics.json'
     predictions_path = args.predictions_path or args.artifact_dir / 'test_predictions.csv'
@@ -547,9 +544,9 @@ def main():
 
     model = MLPNet(
         input_dim=X_train.shape[1],
+        hidden_layers=HIDDEN_LAYERS,
         output_dim=OUTPUT_DIM,
-        dropout_input=DROPOUT_INPUT,
-        dropout_hidden=DROPOUT_HIDDEN,
+        dropout_rates=DROPOUT_RATES,
     ).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(

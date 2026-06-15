@@ -1,0 +1,28 @@
+{
+  "explanation_method": "ig",
+  "perturbation_mode": "remove",
+  "n_terms_requested": 20,
+  "n_terms_used": {
+    "homme": 20,
+    "femme": 20
+  },
+  "n_texts_per_class_requested": 50,
+  "selected_texts_by_class": {
+    "homme": 50,
+    "femme": 50
+  },
+  "n_texts": 100,
+  "accuracy_before_perturbation": 1.0,
+  "accuracy_after_perturbation": 0.97,
+  "accuracy_drop": 0.030000000000000027,
+  "number_of_flipped_predictions": 3,
+  "flip_rate": 0.03,
+  "confidence_drop": 0.02246821880340576,
+  "mean_original_confidence": 0.9206030088663101,
+  "mean_perturbed_confidence": 0.8981347900629043,
+  "homme_accuracy_before": 1.0,
+  "homme_accuracy_after": 0.94,
+  "femme_accuracy_before": 1.0,
+  "femme_accuracy_after": 1.0,
+  "interpretation_note": "These perturbation results describe what the classifier learned, not universal male/female writing rules."
+}

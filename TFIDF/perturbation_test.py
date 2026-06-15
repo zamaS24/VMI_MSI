@@ -7,7 +7,7 @@ from pathlib import Path
 
 TFIDF_ROOT = Path(__file__).resolve().parent
 DEFAULT_DATA_DIR = Path('data') / 'datasetSujet3' / 'content' / 'dataset'
-DEFAULT_MODEL_PATH = TFIDF_ROOT / 'outputs' / 'tfidf_mlp_model.pt'
+DEFAULT_MODEL_PATH = TFIDF_ROOT / 'outputs' / 'tf_idf_mlp_model.pt'
 DEFAULT_VECTORIZER_PATH = TFIDF_ROOT / 'outputs' / 'tfidf_vectorizer.pkl'
 DEFAULT_VIS_DIR = TFIDF_ROOT / 'vis'
 DEFAULT_LRP_GLOBAL_PATH = DEFAULT_VIS_DIR / 'tfidf_lrp_global.csv'
@@ -198,6 +198,12 @@ def resolve_device(device_name):
 
 
 def torch_load_checkpoint(path, device):
+    path = Path(path)
+    if not path.exists() and path.name == 'tfidf_mlp_model.pt':
+        alternate_path = path.with_name('tf_idf_mlp_model.pt')
+        if alternate_path.exists():
+            path = alternate_path
+
     try:
         return torch.load(path, map_location=device, weights_only=False)
     except TypeError:
@@ -205,8 +211,62 @@ def torch_load_checkpoint(path, device):
 
 
 def load_vectorizer(path):
-    with open(path, 'rb') as f:
-        return pickle.load(f)
+    try:
+        import joblib
+
+        return joblib.load(path)
+    except ImportError as exc:
+        raise ImportError(
+            'This vectorizer was saved with joblib, but joblib is not installed '
+            'in the active Python environment. Install joblib or run inside the '
+            'same environment used by main.ipynb.'
+        ) from exc
+    except Exception:
+        with open(path, 'rb') as f:
+            return pickle.load(f)
+
+
+def infer_architecture_from_state_dict(state_dict):
+    linear_layers = []
+
+    for key, value in state_dict.items():
+        parts = key.split('.')
+        if (
+            len(parts) == 3
+            and parts[0] == 'network'
+            and parts[2] == 'weight'
+            and getattr(value, 'ndim', None) == 2
+        ):
+            linear_layers.append((int(parts[1]), int(value.shape[0])))
+
+    linear_layers.sort(key=lambda item: item[0])
+    if not linear_layers:
+        return (64, 32), 2
+
+    hidden_layers = tuple(output_dim for _, output_dim in linear_layers[:-1])
+    output_dim = linear_layers[-1][1]
+    return hidden_layers, output_dim
+
+
+def resolve_dropout_rates(checkpoint, n_hidden_layers):
+    if not isinstance(checkpoint, dict):
+        return 0.2
+
+    dropout_rates = checkpoint.get('dropout_rates')
+    if dropout_rates is None:
+        dropout_rates = checkpoint.get('dropout', 0.2)
+
+    if isinstance(dropout_rates, (int, float)):
+        return float(dropout_rates)
+
+    dropout_rates = list(dropout_rates)
+    if len(dropout_rates) == n_hidden_layers:
+        return dropout_rates
+
+    if len(dropout_rates) == 1:
+        return dropout_rates * n_hidden_layers
+
+    return 0.2
 
 
 def load_model(model_path, input_dim, device):
@@ -214,22 +274,20 @@ def load_model(model_path, input_dim, device):
 
     if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
         state_dict = checkpoint['model_state_dict']
-        output_dim = checkpoint.get('output_dim', 2)
-        dropout_input = checkpoint.get('dropout_input', 0.35)
-        dropout_hidden = checkpoint.get('dropout_hidden', 0.45)
+        hidden_layers, output_dim = infer_architecture_from_state_dict(state_dict)
+        dropout_rates = resolve_dropout_rates(checkpoint, len(hidden_layers))
         classes = checkpoint.get('classes', ['femme', 'homme'])
     else:
         state_dict = checkpoint
-        output_dim = 2
-        dropout_input = 0.35
-        dropout_hidden = 0.45
+        hidden_layers, output_dim = infer_architecture_from_state_dict(state_dict)
+        dropout_rates = 0.2
         classes = ['femme', 'homme']
 
     model = MLPNet(
         input_dim=input_dim,
+        hidden_layers=hidden_layers,
         output_dim=output_dim,
-        dropout_input=dropout_input,
-        dropout_hidden=dropout_hidden,
+        dropout_rates=dropout_rates,
     ).to(device)
     model.load_state_dict(state_dict)
     model.eval()

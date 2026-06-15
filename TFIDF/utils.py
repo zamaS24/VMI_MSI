@@ -10,7 +10,7 @@ from sklearn.preprocessing import LabelEncoder
 
 RANDOM_SEED = 42
 TFIDF_PARAMS = {
-    'max_features': 10000,
+    'max_features': 25000,
     'min_df': 2,
     'max_df': 0.85,
     'ngram_range': (1, 1),
@@ -63,8 +63,13 @@ def ensure_parent_dir(path):
 
 def save_pickle(obj, path):
     ensure_parent_dir(path)
-    with open(path, 'wb') as f:
-        pickle.dump(obj, f)
+    try:
+        import joblib
+
+        joblib.dump(obj, path)
+    except Exception:
+        with open(path, 'wb') as f:
+            pickle.dump(obj, f)
 
 
 def to_jsonable(value):
