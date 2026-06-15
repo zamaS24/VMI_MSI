@@ -10,7 +10,7 @@ from sklearn.preprocessing import LabelEncoder
 
 RANDOM_SEED = 42
 TFIDF_PARAMS = {
-    'max_features': 40000,
+    'max_features': 10000,
     'min_df': 2,
     'max_df': 0.85,
     'ngram_range': (1, 1),
@@ -34,8 +34,9 @@ def encode_labels(train_df, val_df, test_df):
     return le
 
 
-def build_tfidf_features(train_df, val_df, test_df):
-    tfidf = TfidfVectorizer(**TFIDF_PARAMS)
+def build_tfidf_features(train_df, val_df, test_df, tfidf_params=None):
+    params = TFIDF_PARAMS if tfidf_params is None else tfidf_params
+    tfidf = TfidfVectorizer(**params)
 
     X_train = tfidf.fit_transform(train_df['text']).toarray().astype(np.float32)
     X_val = tfidf.transform(val_df['text']).toarray().astype(np.float32)
@@ -45,8 +46,13 @@ def build_tfidf_features(train_df, val_df, test_df):
     y_val = val_df['label_encoded'].values
     y_test = test_df['label_encoded'].values
 
+    n_features = len(tfidf.get_feature_names_out())
+    max_features = params.get('max_features')
+    max_features_text = 'no limit' if max_features is None else str(max_features)
+
+    print(f"Parametres TF-IDF: max_features={max_features_text}, min_df={params.get('min_df')}, max_df={params.get('max_df')}")
     print(f"Forme X_train: {X_train.shape}")
-    print(f"Vocabulaire TF-IDF: {len(tfidf.get_feature_names_out())} mots")
+    print(f"Nombre de features TF-IDF retenues: {n_features}")
 
     return tfidf, X_train, X_val, X_test, y_train, y_val, y_test
 

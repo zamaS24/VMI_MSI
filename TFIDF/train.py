@@ -1,12 +1,17 @@
 import argparse
+import copy
 from pathlib import Path
 
 
 BATCH_SIZE = 16
 EPOCHS = 5
 LEARNING_RATE = 1e-3
-WEIGHT_DECAY = 1e-4
-HIDDEN_LAYERS = (64, 32)
+WEIGHT_DECAY = 1e-2
+HIDDEN_LAYERS = (512, 128, 32)
+DROPOUT_INPUT = 0.35
+DROPOUT_HIDDEN = 0.45
+EARLY_STOPPING_PATIENCE = 2
+EARLY_STOPPING_MIN_DELTA = 1e-4
 OUTPUT_DIM = 2
 
 DEFAULT_BASE_DIR = Path('data') / 'datasetSujet3' / 'content' / 'dataset'
@@ -138,6 +143,30 @@ def parse_args():
         help='Path for the saved training history CSV file.',
     )
     parser.add_argument(
+        '--loss-plot-path',
+        type=Path,
+        default=None,
+        help='Path for the saved train/validation loss curve PNG file.',
+    )
+    parser.add_argument(
+        '--max-features',
+        type=int,
+        default=None,
+        help='Optional maximum TF-IDF vocabulary size. Omit it to keep all retained terms.',
+    )
+    parser.add_argument(
+        '--min-df',
+        type=int,
+        default=None,
+        help='Ignore terms that appear in fewer than this many training texts.',
+    )
+    parser.add_argument(
+        '--max-df',
+        type=float,
+        default=None,
+        help='Ignore terms that appear in more than this document-frequency ratio.',
+    )
+    parser.add_argument(
         '--no-show-plot',
         action='store_true',
         help='Save metrics without opening the confusion matrix window.',
@@ -151,6 +180,19 @@ def print_dataset_summary(train_df, val_df, test_df):
     print("Train:\n", train_df['label'].value_counts())
     print("Val:\n", val_df['label'].value_counts())
     print("Test:\n", test_df['label'].value_counts())
+
+
+def resolve_tfidf_params(args):
+    params = dict(TFIDF_PARAMS)
+
+    if args.max_features is not None:
+        params['max_features'] = args.max_features
+    if args.min_df is not None:
+        params['min_df'] = args.min_df
+    if args.max_df is not None:
+        params['max_df'] = args.max_df
+
+    return params
 
 
 def make_dataloaders(X_train, X_val, X_test, y_train, y_val, y_test):
@@ -203,8 +245,21 @@ def run_epoch(model, loader, criterion, device, optimizer=None):
     return total_loss / total_samples, total_correct / total_samples
 
 
-def train_model(model, train_loader, val_loader, criterion, optimizer, device):
+def train_model(
+    model,
+    train_loader,
+    val_loader,
+    criterion,
+    optimizer,
+    device,
+    patience=EARLY_STOPPING_PATIENCE,
+    min_delta=EARLY_STOPPING_MIN_DELTA,
+):
     history = []
+    best_state_dict = None
+    best_epoch = 0
+    best_val_loss = float('inf')
+    epochs_without_improvement = 0
 
     for epoch in range(1, EPOCHS + 1):
         train_loss, train_acc = run_epoch(
@@ -212,21 +267,46 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, device):
         )
         val_loss, val_acc = run_epoch(model, val_loader, criterion, device)
 
+        improved = val_loss < best_val_loss - min_delta
+        if improved:
+            best_state_dict = copy.deepcopy(model.state_dict())
+            best_epoch = epoch
+            best_val_loss = val_loss
+            epochs_without_improvement = 0
+        else:
+            epochs_without_improvement += 1
+
         history.append({
             'epoch': epoch,
             'train_loss': train_loss,
             'train_acc': train_acc,
             'val_loss': val_loss,
             'val_acc': val_acc,
+            'is_best': improved,
         })
 
         print(
             f'Epoch {epoch:02d}/{EPOCHS} | '
             f'train_loss={train_loss:.4f} train_acc={train_acc:.4f} | '
             f'val_loss={val_loss:.4f} val_acc={val_acc:.4f}'
+            f'{" | best" if improved else ""}'
         )
 
-    return pd.DataFrame(history)
+        if patience and epochs_without_improvement >= patience:
+            print(
+                f'Early stopping after {epoch} epochs '
+                f'(best val_loss={best_val_loss:.4f} at epoch {best_epoch}).'
+            )
+            break
+
+    if best_state_dict is not None:
+        model.load_state_dict(best_state_dict)
+        print(f'Restored best validation checkpoint from epoch {best_epoch}.')
+
+    history_df = pd.DataFrame(history)
+    history_df.attrs['best_epoch'] = best_epoch
+    history_df.attrs['best_val_loss'] = best_val_loss
+    return history_df
 
 
 def collect_predictions(model, test_loader, device):
@@ -279,6 +359,34 @@ def save_confusion_matrix(cm, classes, path):
     plt.savefig(path, dpi=150, bbox_inches='tight')
 
 
+def plot_loss_curve(history_df):
+    plt.figure()
+    plt.plot(
+        history_df['epoch'],
+        history_df['train_loss'],
+        marker='o',
+        label='Train loss',
+    )
+    plt.plot(
+        history_df['epoch'],
+        history_df['val_loss'],
+        marker='o',
+        label='Validation loss',
+    )
+    plt.xlabel('Epoch')
+    plt.ylabel('Cross-entropy loss')
+    plt.title('TF-IDF MLP Training Loss')
+    plt.xticks(history_df['epoch'])
+    plt.legend()
+    plt.tight_layout()
+
+
+def save_loss_curve(history_df, path):
+    plot_loss_curve(history_df)
+    ensure_parent_dir(path)
+    plt.savefig(path, dpi=150, bbox_inches='tight')
+
+
 def build_prediction_rows(test_df, le, all_preds, all_confidences, preview_chars=200):
     predicted_labels = le.inverse_transform(all_preds)
 
@@ -310,6 +418,7 @@ def make_metrics(
     test_df,
     le,
     tfidf,
+    tfidf_params,
     history_df,
     test_loss,
     test_acc,
@@ -334,17 +443,26 @@ def make_metrics(
 
     return {
         'random_seed': RANDOM_SEED,
-        'tfidf_params': TFIDF_PARAMS,
+        'tfidf_params': tfidf_params,
         'model': {
+            'architecture': 'BatchNorm1d + MLP(512, 128, 32) + LayerNorm + GELU',
             'input_dim': len(tfidf.get_feature_names_out()),
             'hidden_layers': HIDDEN_LAYERS,
             'output_dim': OUTPUT_DIM,
+            'dropout_input': DROPOUT_INPUT,
+            'dropout_hidden': DROPOUT_HIDDEN,
+            'uses_batch_norm': True,
+            'uses_layer_norm': True,
         },
         'training': {
             'batch_size': BATCH_SIZE,
             'epochs': EPOCHS,
             'learning_rate': LEARNING_RATE,
             'weight_decay': WEIGHT_DECAY,
+            'early_stopping_patience': EARLY_STOPPING_PATIENCE,
+            'early_stopping_min_delta': EARLY_STOPPING_MIN_DELTA,
+            'best_epoch': history_df.attrs.get('best_epoch'),
+            'best_val_loss': history_df.attrs.get('best_val_loss'),
         },
         'class_mapping': dict(zip(le.classes_, range(len(le.classes_)))),
         'dataset': {
@@ -373,17 +491,22 @@ def make_metrics(
     }
 
 
-def save_checkpoint(model, path, le, tfidf):
+def save_checkpoint(model, path, le, tfidf, tfidf_params):
     ensure_parent_dir(path)
     torch.save(
         {
             'model_state_dict': model.state_dict(),
+            'architecture': 'BatchNorm1d + MLP(512, 128, 32) + LayerNorm + GELU',
             'input_dim': len(tfidf.get_feature_names_out()),
             'hidden_layers': HIDDEN_LAYERS,
             'output_dim': OUTPUT_DIM,
+            'dropout_input': DROPOUT_INPUT,
+            'dropout_hidden': DROPOUT_HIDDEN,
+            'uses_batch_norm': True,
+            'uses_layer_norm': True,
             'classes': le.classes_.tolist(),
             'class_mapping': dict(zip(le.classes_, range(len(le.classes_)))),
-            'tfidf_params': TFIDF_PARAMS,
+            'tfidf_params': tfidf_params,
         },
         path,
     )
@@ -404,6 +527,7 @@ def main():
     metrics_path = args.metrics_path or args.artifact_dir / 'metrics.json'
     predictions_path = args.predictions_path or args.artifact_dir / 'test_predictions.csv'
     history_path = args.history_path or args.output_dir / 'history.csv'
+    loss_plot_path = args.loss_plot_path or args.output_dir / 'loss_curve.png'
 
     set_random_seed(RANDOM_SEED)
 
@@ -411,8 +535,9 @@ def main():
     print_dataset_summary(train_df, val_df, test_df)
 
     le = encode_labels(train_df, val_df, test_df)
+    tfidf_params = resolve_tfidf_params(args)
     tfidf, X_train, X_val, X_test, y_train, y_val, y_test = build_tfidf_features(
-        train_df, val_df, test_df
+        train_df, val_df, test_df, tfidf_params=tfidf_params
     )
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -422,8 +547,9 @@ def main():
 
     model = MLPNet(
         input_dim=X_train.shape[1],
-        hidden_layers=HIDDEN_LAYERS,
         output_dim=OUTPUT_DIM,
+        dropout_input=DROPOUT_INPUT,
+        dropout_hidden=DROPOUT_HIDDEN,
     ).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(
@@ -452,6 +578,7 @@ def main():
         test_df,
         le,
         tfidf,
+        tfidf_params,
         history_df,
         test_loss,
         test_acc,
@@ -460,12 +587,13 @@ def main():
         cm,
     )
 
-    save_checkpoint(model, model_path, le, tfidf)
+    save_checkpoint(model, model_path, le, tfidf, tfidf_params)
     save_pickle(tfidf, vectorizer_path)
     save_predictions_csv(test_df, le, all_preds, all_confidences, predictions_path)
     save_json(metrics, metrics_path)
     ensure_parent_dir(history_path)
     history_df.to_csv(history_path, index=False)
+    save_loss_curve(history_df, loss_plot_path)
     save_confusion_matrix(cm, le.classes_, args.confusion_matrix_path)
 
     print(f'Saved model: {model_path}')
@@ -473,6 +601,7 @@ def main():
     print(f'Saved predictions: {predictions_path}')
     print(f'Saved metrics: {metrics_path}')
     print(f'Saved history: {history_path}')
+    print(f'Saved loss curve: {loss_plot_path}')
     print(f'Saved confusion matrix: {args.confusion_matrix_path}')
 
     if not args.no_show_plot:

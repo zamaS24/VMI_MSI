@@ -160,19 +160,22 @@ def load_model(model_path, input_dim, device):
 
     if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
         state_dict = checkpoint['model_state_dict']
-        hidden_layers = tuple(checkpoint.get('hidden_layers', (64, 32)))
         output_dim = checkpoint.get('output_dim', 2)
+        dropout_input = checkpoint.get('dropout_input', 0.35)
+        dropout_hidden = checkpoint.get('dropout_hidden', 0.45)
         classes = checkpoint.get('classes', ['femme', 'homme'])
     else:
         state_dict = checkpoint
-        hidden_layers = (64, 32)
         output_dim = 2
+        dropout_input = 0.35
+        dropout_hidden = 0.45
         classes = ['femme', 'homme']
 
     model = MLPNet(
         input_dim=input_dim,
-        hidden_layers=hidden_layers,
         output_dim=output_dim,
+        dropout_input=dropout_input,
+        dropout_hidden=dropout_hidden,
     ).to(device)
     model.load_state_dict(state_dict)
     model.eval()
