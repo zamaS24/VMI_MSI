@@ -1,0 +1,554 @@
+%author : Jiahao Shi 2024/5/10
+\documentclass[10pt]{beamer}
+\usepackage[utf8]{inputenc}
+\usepackage{xeCJK}
+\usepackage{graphicx}
+\usepackage {mathtools}
+\usepackage{utopia} %font utopia imported
+\usetheme{CambridgeUS}
+\usecolortheme{dolphin}
+\usepackage{tcolorbox}
+\usepackage{tabularray}
+\usepackage{float}
+\usepackage{adjustbox}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{multirow}
+\usepackage{tikz}
+\usepackage{booktabs}
+\usepackage{makecell}
+\usepackage{array}
+\renewcommand\theadfont{\bfseries}
+
+\usetikzlibrary{positioning} % For advanced node positioning (right=of)
+\usetikzlibrary{calc}        % For coordinate calculations
+\usetikzlibrary{arrows.meta}  % For improved arrow tips
+\usetikzlibrary{shapes} 
+\usepackage{longtable}
+% custom colors 自定义颜色，可根据主题调整
+% Define a palette of reds
+% Define redgrades first (example)
+\definecolor{lightred}{RGB}{180,227,236}        % very light red (backgrounds)
+\definecolor{middlelightred}{RGB}{138,22,57}  % light/mid red (accents)
+\definecolor{middledered}{RGB}{217,79,120}      % bright medium red (main highlight)
+\definecolor{redforsnnu}{RGB}{176,44,89}        % deep but still clear red
+\definecolor{darkred}{RGB}{138,22,57}           % uni logo red (titles, emphasis)
+
+
+% Assign redgrades to Beamer elements
+\setbeamercolor*{palette primary}{bg=redforsnnu, fg=white}       % main deep red background
+\setbeamercolor*{palette secondary}{bg=middledered, fg=white}    % medium red background
+\setbeamercolor*{palette tertiary}{bg=middlelightred, fg=white} % lighter red background, dark text
+\setbeamercolor*{titlelike}{fg=redforsnnu}                       % deep red foreground for title-like elements
+\setbeamercolor*{title}{bg=darkred, fg=white}                    % very dark red background with white text
+\setbeamercolor*{item}{fg=redforsnnu}                            % deep red for items
+\setbeamercolor*{caption name}{fg=middledered}                   % medium red for caption names
+
+
+\usefonttheme{professionalfonts}
+\usepackage{natbib}
+\usepackage{hyperref}
+
+\usepackage{tikz}
+\usepackage{graphicx}
+\usepackage{lipsum}
+\usetikzlibrary{arrows.meta, shapes.geometric}
+
+\titlegraphic{
+\begin{tikzpicture}[overlay, remember picture]
+    % Position the left logo
+    %\node[anchor=north west, xshift=0.2cm, yshift=-0.2cm] at (current page.north west){
+        
+    %};
+    % Add text in between the logos
+    \node[anchor=north, yshift=-0.7cm, xshift =-0cm] at (current page.north){
+        \begin{minipage}{\textwidth}
+            \centering
+             \includegraphics[height=2cm]{UniversiteParisCite_logo_horizontal_couleur_RVB.jpg}
+        \end{minipage}
+    };
+    % Position the right logo
+    %\node[anchor=north east, xshift=-0.2cm, yshift=-0.2cm] at (current page.north east){
+    %};
+\end{tikzpicture}
+}
+
+\setbeamerfont{title}{size=\large}
+\setbeamerfont{subtitle}{size=\small}
+\setbeamerfont{author}{size=\small}
+\setbeamerfont{date}{size=\small}
+\setbeamerfont{institute}{size=\small}
+
+\vspace*{0.5cm}
+\title[]{Extraction de connaissances à partir de textes non structurés à l'aide de techniques d'apprentissage automatique}
+
+% \subtitle{ } % Subtitle (if needed)
+\author[\textbf{Recherche et extraction sémantique à partir de texte}]{
+            { \bf BOUKHARI Imed Eddine}\\ 
+            {\bf OMARI Hamza} \\ 
+            {\bf AGOUNI KACI Sofiane} \\ 
+            {\bf SOUAYAH Abdelkader} } % Author
+\vspace*{-0.5cm}
+\date[\textcolor{white}{18/12/2025}]{18/12/2025}
+
+% Insert the middle text
+\vspace*{2cm}
+
+\vspace*{-1cm}
+
+%------------------------------------------------------------
+%This block of commands puts the table of contents at the 
+%beginning of each section and highlights the current section:
+
+\AtBeginSection[]{
+  \begin{frame}
+  \vfill
+  \transfade
+  \centering
+  \begin{beamercolorbox}[sep=8pt,center,shadow=true,rounded=true]{title}
+    \usebeamerfont{title}\insertsectionhead\par%
+  \end{beamercolorbox}
+  \vfill
+  \end{frame}
+}
+%------------------------------------------------------------
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}{Table of Contents}
+    \tableofcontents
+\end{frame}
+
+\section{Dataset}
+
+%------------------------------------------------------------
+% SLIDE 1: The Context & Problem
+%------------------------------------------------------------
+\begin{frame}{Ensemble de données}
+        \vspace{-0.6cm}
+    \begin{columns}[T]
+        % RIGHT COLUMN - TEXT
+        \begin{column}{0.38\textwidth}
+            \begin{tcolorbox}[colback=lightred!20, colframe=redforsnnu, title=Aperçu de l'ensemble de données]
+                \begin{itemize}\scriptsize
+                    \item 17 classes
+                    \item $\sim$ 1 000 000 mots
+                    \item $\sim$ 500 000 phrases
+                \end{itemize}
+            \end{tcolorbox}
+
+            
+            \begin{tcolorbox}[colback=middledered!20, colframe=darkred, title=Étiquettes d'entités]
+                \begin{itemize}\scriptsize
+                    \item \textbf{O}: Aucune étiquette (87\%)
+                    \item \textbf{geo}: Entité géographique
+                    \item \textbf{gpe}: Entité géopolitique
+                    \item \textbf{per}: Personne
+                    \item \textbf{org}: Organisation
+                    \item \textbf{tim}: Expression temporelle
+                    \item \textbf{art}: Artefact
+                    \item \textbf{nat}: Nationalité
+                    \item \textbf{eve}: Événement
+                \end{itemize}
+            \end{tcolorbox}
+        \end{column}
+        
+% LEFT COLUMN - IMAGE
+        \begin{column}{0.58\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=\linewidth]{NER-Tags.png}
+            \end{figure}
+            \begin{tcolorbox}[colback=lightred!20, colframe=redforsnnu, title=]
+                \begin{itemize}\scriptsize                    \item Événements géopolitiques (Guerre en Irak, ..)
+                    \item Attributs d'entités: Personne, Org, ..
+                \end{itemize}
+            \end{tcolorbox}
+        \end{column}
+        
+    \end{columns}
+
+    
+\end{frame}
+
+
+
+
+\section{Preprocessing}
+\begin{frame}{NLP preprocessing pipelines }
+    
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.6\linewidth]{generic.png}
+        \caption*{Generic NLP Pipeline}
+        \label{fig:generic}
+    \end{figure}
+    
+    \vspace{-0.5cm}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.6\linewidth]{DL.png}
+
+    \end{figure}
+    
+\end{frame}
+
+\begin{frame}{Preprocessing}    
+    \begin{columns}[T]
+        % LEFT COLUMN - Data Cleaning
+        \begin{column}{0.48\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=\linewidth]{datacleaning.png}
+                \caption*{Data Cleaning}
+                \label{fig:datacleaning}
+            \end{figure}
+        \end{column}
+        
+        % RIGHT COLUMN - Best Free NLP Tools
+        \begin{column}{0.48\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=\linewidth]{bestfreenlptools.png}
+                \caption*{Best Free NLP Tools}
+                \label{fig:besttools}
+            \end{figure}
+        \end{column}
+    \end{columns}
+    
+\end{frame}
+\begin{frame}{Text Representation}
+        
+    \begin{columns}[T]
+        % LEFT COLUMN - Hand crafted features
+        \begin{column}{0.48\textwidth}
+        \vspace{0.5cm}
+            \textbf{Hand crafted features}
+            \begin{itemize}\small
+                \item Tokenisation
+                \item Balisage grammatical (POS tagging)
+                \item Lemmatisation
+                \item Reconnaissance d'entités nommées (NER)
+            \end{itemize}
+
+        \end{column}
+        
+        % RIGHT COLUMN - Images
+        \begin{column}{0.48\textwidth}
+            \vspace{-0.5cm}
+            \begin{figure}
+                \centering
+                \includegraphics[width=\linewidth]{word2vec.png}
+                \caption*{Word2Vec}
+                \label{fig:word2vec}
+            \end{figure}
+            
+            \vspace{-0.5cm}
+            
+            \begin{figure}
+                \centering
+                \includegraphics[width=\linewidth]{bert.png}
+                \caption*{BERT}
+                \label{fig:bert}
+            \end{figure}
+        \end{column}
+    \end{columns}
+    
+\end{frame}
+
+\begin{frame}{Text Representation -2-}
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\linewidth]{fig.png}
+    \end{figure}
+\end{frame}
+
+\section{Classification NER}
+\begin{frame}{Méthodes Implémentées}
+    
+    \begin{columns}[T]
+        % LEFT COLUMN - Rule-based
+        \begin{column}{0.48\textwidth}
+            \begin{tcolorbox}[colback=lightred!20, colframe=redforsnnu, title=Rule-based NER]
+                \begin{itemize}
+                    \item \textbf{Utilisation:} spaCy
+                    \item Règles linguistiques + modèles pré-entraînés
+                    \item \textbf{Avantages:}
+                    \begin{itemize}
+                        \item Rapide à mettre en place
+                        \item Interprétable
+                    \end{itemize}
+                    \item \textbf{Limites:}
+                    \begin{itemize}
+                        \item Sensible au bruit
+                        \item Faible généralisation
+                    \end{itemize}
+                \end{itemize}
+            \end{tcolorbox}
+        \end{column}
+        
+        % RIGHT COLUMN - Machine Learning
+        \begin{column}{0.48\textwidth}
+            \begin{tcolorbox}[colback=middledered!20, colframe=darkred, title=Machine Learning NER]
+                \begin{itemize}
+                    \item \textbf{Modèle:} CRF
+                    \item Apprentissage supervisé à partir du corpus
+                    \item \textbf{Avantages:}
+                    \begin{itemize}
+                        \item Meilleure précision
+                        \item Prise en compte du contexte
+                    \end{itemize}
+                    \item \textbf{Limites:}
+                    \begin{itemize}
+                        \item Dépendance à la qualité des données annotées
+                    \end{itemize}
+                \end{itemize}
+            \end{tcolorbox}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+ 
+\begin{frame}{Objectif \& Données}
+    \vspace{-0.5cm}
+    
+    \begin{tcolorbox}[colback=lightred!20, colframe=redforsnnu, title=]
+        \begin{itemize}
+            \item \textbf{Objectif:} Appliquer et comparer plusieurs approches de Named Entity Recognition (NER)
+            \item Identifier et classifier des entités nommées dans un corpus annoté
+            \item \textbf{Données:} Corpus NER annoté (schéma BIO)
+            \item Colonnes: Word, POS, NER Tag
+            \item Catégories d'entités: Person, Organization, Location, Date, Product, etc.
+            \item \textbf{But final:} Extraire des entités fiables pour des tâches d'extraction d'information et de relations
+        \end{itemize}
+    \end{tcolorbox}
+    
+\end{frame}
+
+\begin{frame}{Résultats \& Évaluation}
+
+    
+    \begin{columns}[T]
+        % LEFT COLUMN - TEXT
+        \begin{column}{0.33\textwidth}
+            \begin{itemize}\small
+                \item \textbf{Classification des entités}
+                \begin{itemize}\small
+                    \item Chaque entité est classée dans une catégorie (Person, Organization, Date, etc.)
+                    \item Utilisation du schéma BIO pour la prédiction séquentielle
+                \end{itemize}
+                \item \textbf{Évaluation}
+                \begin{itemize}\small
+                    \item Métriques: Precision: \textbf{0.86},\\ Recall: \textbf{0.84}, \\ F1-score: \textbf{0.85}.
+                \end{itemize}
+            \end{itemize}
+        \end{column}
+        
+        % RIGHT COLUMN - IMAGE
+        \begin{column}{0.65\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=\linewidth]{hmz.png}
+            \end{figure}
+        \end{column}
+    \end{columns}
+    
+\end{frame}
+
+\begin{frame}{Observations}
+    
+    \begin{itemize}
+        \item Les approches ML surpassent les méthodes rule-based
+        \item Le CRF offre un bon compromis performance / complexité
+        \item Les erreurs proviennent principalement:
+        \begin{itemize}
+            \item du déséquilibre des classes
+            \item des ambiguïtés linguistiques
+        \end{itemize}
+    \end{itemize}
+    
+\end{frame}
+
+\section{Extraction des relations et le Knowledge graph}
+
+% SLIDE 1 – Extraction des relations
+\begin{frame}{Extraction des relations}
+    \vspace{-0.4cm}
+    \begin{itemize}
+        \item \textbf{Objectif:} extraire des triplets \textit{(sujet, verbe, objet)} à partir du corpus.
+        
+        \item \textbf{Étape 1 – Sélection des verbes}
+        \begin{itemize}
+            \item On ne garde que des verbes dans une liste \texttt{top\_verbs}
+            \item Exemple: \textit{say, meet, visit, arrest, attack, call, report, warn, ...}
+        \end{itemize}
+        
+        \item \textbf{Étape 2 – Parcours des dépendances}
+        \begin{itemize}
+            \item \texttt{nsubj}, \texttt{nsubjpass} pour trouver le sujet du verbe  
+                  Exemple: \textit{"Clinton visited Iraq"} $\rightarrow$ \texttt{nsubj(visited, Clinton)}
+            \item \texttt{dobj}, \texttt{pobj}, pour trouve l’objet  
+                  Exemple: \textit{"visited Iraq"} $\rightarrow$ \texttt{dobj(visited, Iraq)}
+        \end{itemize}
+        
+        \item \textbf{Étape 3 – Construction des triplets}
+        \begin{itemize}
+            \item Pour chaque verbe sélectionné, on génère \textit{(sujet, verbe, objet)}
+            \item Exemple de triplet: \textbf{(Clinton, visit, Iraq)}
+        \end{itemize}
+        
+        \item \textbf{Étape 4 – Chunking du texte}
+        \begin{itemize}
+            \item Texte très long $\rightarrow$ découpage en blocs de 75 000 caractères
+            \item Extraction des triplets sur chaque bloc, puis agrégation des résultats
+        \end{itemize}
+        
+    \end{itemize}
+\end{frame}
+
+
+% SLIDE 2 – Knowledge graph sans coréférence
+
+\begin{frame}{Knowledge graph (sans coréférence)}
+    \vspace{-0.4cm}
+    \begin{itemize}\small
+        \item Les triplets \textit{(sujet, verbe, objet)} sont transformés en graphe orienté avec NetworkX.
+        \item Nœuds: entités nommées; arêtes: relations verbales (étiquette = verbe).
+        \item Visualisation: \texttt{spring\_layout}, nœuds bleus, labels d'arêtes en rouge.
+    \end{itemize}
+    
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.75\linewidth]{kg\_no\_coref.png} % <-- mets ici le nom de la 1ère image
+        \caption*{Knowledge Graph – relations extraites (avant coréférence)}
+    \end{figure}
+\end{frame}
+
+% SLIDE 3 – Coréférence et nouveau graphe
+
+\begin{frame}{Coréférence et Knowledge graph}
+    \vspace{-0.4cm}
+    \begin{itemize}\small
+        \item Coréférence optimisée pour longs documents ($30\,000+$ mots).
+        \item Traitement phrase par phrase avec fenêtre de contexte glissante.
+        \item Remplacement des pronoms (\textit{he, she, it, they, ...}) par:
+        \begin{itemize}\scriptsize
+            \item entités PERSON, sinon ORG, sinon GPE/LOC.
+        \end{itemize}
+        \item Les relations sont ré-extraites sur le texte résolu, puis le graphe est reconstruit.
+    \end{itemize}
+    
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.72\linewidth]{kg\_coref.png} % <-- mets ici le nom de la 2ème image
+        \caption*{Knowledge Graph – relations extraites (avec coréférence)}
+    \end{figure}
+\end{frame}
+
+
+
+
+
+\begin{frame}{Défis de l'extraction de relations - Analyse et conclusion}
+            \vspace{-0.1cm}
+
+    % TABLE AT TOP - FULL WIDTH
+    \begin{table}\scriptsize
+        \centering
+        \begin{tabular}{|p{3cm}|p{3cm}|p{4cm}|}
+            \hline
+            \textbf{Critère} & \textbf{Analyse de dépendances} & \textbf{RE basée sur l'AM} \\
+            \hline
+            Approche & Règles \& structures syntaxiques & Apprentissage à partir des données \\
+            \hline
+            Données annotées requises & Non & Oui \\
+            \hline
+            Interprétabilité & Élevée & Moyenne à faible \\
+            \hline
+            Robustesse & Faible & Élevée \\
+            \hline
+            Généralisation & Limitée & Forte \\
+            \hline
+            Relations implicites & Non & Oui \\
+            \hline
+            Scalabilité & Moyenne & Élevée \\
+            \hline
+            Adaptation à nouveaux domaines & Règles manuelles & Réentraînement automatique \\
+            \hline
+            Coût computationnel & Faible à modéré & Modéré à élevé \\
+            \hline
+            Gestion des paraphrases & Faible & Bonne \\
+            \hline
+            Utilisation typique & Domaines contrôlés & Grands volumes de données, langage varié \\
+            \hline
+        \end{tabular}
+    \end{table}
+    
+        \vspace{-0.1cm}
+    % THREE BOXES BELOW IN COLUMNS
+    \begin{columns}[T]
+        % BOX 1 - Ambiguity
+        \begin{column}{0.31\textwidth}
+            \begin{tcolorbox}[colback=lightred!20, colframe=redforsnnu, title=Ambiguïté contextuelle]
+                \begin{itemize}\scriptsize
+                    \item « Paris » $\rightarrow$ Ville? Personne? Hôtel?
+                \end{itemize}
+            \end{tcolorbox}
+        \end{column}
+        
+        % BOX 2 - Multi-word entities & Coreference
+        \begin{column}{0.31\textwidth}
+    \begin{tcolorbox}[colback=middledered!20, colframe=darkred, title=Multi-mots]
+        \begin{itemize}\scriptsize
+            \item[$\times$] {\color{red}[United] [Nations] [Security] [Council]}
+            \item[$\checkmark$] {\color{black}[United Nations Security Council]}
+        \end{itemize}
+    \end{tcolorbox}
+\end{column}
+        
+        % BOX 3 - Applications & Results
+        \begin{column}{0.31\textwidth}
+            \begin{tcolorbox}[colback=lightred!20, colframe=redforsnnu, title=Applications]
+                \begin{itemize}\scriptsize
+                    \item Questions-réponses
+                    \item Recommandation
+                    \item Recherche sémantique
+                    \item \textbf{LLM: 92 vs 40}
+                \end{itemize}
+            \end{tcolorbox}
+        \end{column}
+    \end{columns}
+    
+\end{frame}
+
+
+\section{Références}
+
+\begin{frame}[allowframebreaks]{Références}
+    \begin{thebibliography}{10}
+    
+        \bibitem{conll2003}
+        Sang, E. F. T. K., \& De Meulder, F. (2003).
+        ``Introduction to the CoNLL-2003 Shared Task: Language-Independent Named Entity Recognition.''
+        \textit{Proceedings of the Seventh Conference on Natural Language Learning}.
+        
+        \bibitem{spacy}
+        Honnibal, M., \& Montani, I. (2017).
+        ``spaCy 2: Natural language understanding with Bloom embeddings, convolutional neural networks and incremental parsing.''
+        Retrieved from \url{https://spacy.io}
+        
+        \bibitem{networkx}
+        Hagberg, A. A., Schult, D. A., \& Swart, P. J. (2008).
+        ``Exploring network structure, dynamics, and function using NetworkX.''
+        \textit{Proceedings of the 7th Python in Science Conference}, 11-15.
+        
+        \bibitem{dataset}
+        ``NER Dataset: Named Entity Recognition Corpus.''
+        Available on Kaggle and GitHub repositories.
+        Corpus with 1,000,000+ words, 500,000+ phrases, 17 entity classes (BIO schema).
+        
+    \end{thebibliography}
+\end{frame}
+
+\end{document}
