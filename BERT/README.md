@@ -1,138 +1,291 @@
-# CamemBERT Text Classification Pipeline
+# Explicabilite des modeles de classification de textes - Approche BERT
 
-This directory contains a complete CamemBERT pipeline for binary text classification:
+Ce dossier contient le pipeline BERT/CamemBERT du projet de classification binaire de textes `homme` vs `femme`.
 
-- `femme -> 0`
-- `homme -> 1`
+L'objectif n'est pas seulement de predire une classe, mais aussi de comprendre les indices utilises par le modele pour produire ses decisions. Le projet combine donc entrainement, evaluation, explicabilite et visualisations, afin de servir a la fois de code source reproductible et de mini-rapport de projet.
 
-The data is assumed to be preprocessed before it reaches this project. The scripts read the existing `train`, `val`, and `test` folders, split long texts into 512-token CamemBERT chunks, fine-tune `camembert-base`, evaluate the resulting classifier, and generate LIME/SHAP explanations.
+> Les resultats presentes ici decrivent le comportement du modele sur ce dataset. Ils ne doivent pas etre interpretes comme des regles generales sur l'ecriture masculine ou feminine.
 
-## Architecture
+## Sommaire
+
+- [1. Sujet du projet](#1-sujet-du-projet)
+- [2. Organisation du dossier](#2-organisation-du-dossier)
+- [3. Dataset](#3-dataset)
+- [4. Pipeline global](#4-pipeline-global)
+- [5. Modele et entrainement](#5-modele-et-entrainement)
+- [6. Resultats](#6-resultats)
+- [7. Explicabilite](#7-explicabilite)
+- [8. Visualisation locale et attention](#8-visualisation-locale-et-attention)
+- [9. Scripts et commandes](#9-scripts-et-commandes)
+- [10. Limites](#10-limites)
+
+## 1. Sujet du projet
+
+Le projet etudie une tache de classification binaire de textes :
+
+| Element | Description |
+| --- | --- |
+| Entree | Fichiers texte bruts |
+| Sortie | Classe predite : `femme` ou `homme` |
+| Modele | CamemBERT pour classification de sequences |
+| Evaluation | Accuracy, precision, recall, F1-score, matrice de confusion, ROC |
+| Explicabilite | SHAP, LIME, explications locales, poids d'attention |
+
+Le modele utilise une representation contextuelle BERT, contrairement a une approche TF-IDF ou chaque feature correspond directement a un mot. Ici, les representations dependent du contexte, ce qui rend le modele plus puissant mais aussi plus difficile a interpreter.
+
+## 2. Organisation du dossier
 
 ```text
 BERT/
-├── config.py                  # Defaults, paths, labels, dataclass configs
-├── data_loader.py             # Dataset loading and 512-token chunking
-├── model.py                   # CamemBERT model/tokenizer helpers
-├── train.py                   # Fine-tuning pipeline
-├── evaluate.py                # Test-set evaluation
-├── explain_lime.py            # LIME explanations
-├── explain_shap.py            # SHAP explanations
-├── experiment.py              # Plugin-style explainability experiments
-├── utils.py                   # Metrics, plots, JSON, reproducibility
-├── requirements.txt
-├── README.md
-├── outputs/
-│   ├── checkpoints/
-│   ├── models/
-│   └── logs/
-├── artifacts/
-└── vis/
+  config.py                 # chemins, labels, hyperparametres par defaut
+  data_loader.py            # chargement dataset, extraction labels, chunking CamemBERT
+  model.py                  # creation, sauvegarde, chargement et prediction du modele
+  train.py                  # fine-tuning complet de CamemBERT
+  evaluate.py               # evaluation sur le split test
+  explain_shap.py           # explications SHAP
+  explain_lime.py           # explications LIME
+  experiment.py             # runner experimental pour comparer methodes/modeles
+  utils.py                  # metriques, plots, JSON, seeds
+  everything.ipynb          # notebook d'exploration et consolidation des experiences
+  requirements.txt          # dependances Python
+  outputs/                  # modeles sauvegardes, checkpoints, logs
+  artifacts/                # resultats tabulaires
+  vis/                      # visualisations generees par les scripts
+  presentation/             # presentation Beamer et figures du rapport
 ```
 
-## Installation
+Les figures utilisees dans ce README proviennent principalement de :
 
-Create an environment with Python 3.10 or newer, then install dependencies:
+```text
+BERT/presentation/images/
+```
+
+## 3. Dataset
+
+Le dataset est organise en trois splits :
+
+| Split | Total | Femme | Homme |
+| --- | ---: | ---: | ---: |
+| Train | 852 | 492 | 360 |
+| Validation | 284 | 164 | 120 |
+| Test | 285 | 165 | 120 |
+
+Les labels sont extraits automatiquement depuis les noms des fichiers. Dans le code, le quatrieme champ parenthese du nom de fichier est utilise :
+
+- valeur `1` : classe `homme`
+- valeur `2` : classe `femme`
+
+Si cette convention n'est pas disponible, le code essaie aussi d'inferer le label depuis les dossiers parents `homme` ou `femme`.
+
+<p align="center">
+  <img src="presentation/images/distribution_total.png" alt="Distribution totale homme femme" width="44%">
+  <img src="presentation/images/distribution_splits.png" alt="Distribution par split" width="44%">
+</p>
+
+### Chunking des documents longs
+
+CamemBERT accepte des sequences de longueur limitee. Les textes longs sont donc decoupes en chunks de longueur maximale 512 tokens, tokens speciaux inclus.
+
+Dans l'experience presentee, l'echantillonnage des chunks est :
+
+| Classe | Nombre de chunks par document |
+| --- | ---: |
+| Homme | 64 |
+| Femme | 32 |
+
+Ce choix est utilise car il y a davantage de documents `femme` que de documents `homme`. Le nombre de chunks par document est donc ajuste pour reduire le desequilibre pendant l'entrainement.
+
+Important : pour l'evaluation document-level, les probabilites sont calculees sur les chunks puis moyennees afin d'obtenir une prediction finale par document.
+
+## 4. Pipeline global
+
+Le pipeline suit les etapes suivantes :
+
+```text
+Textes bruts
+  -> extraction des labels
+  -> tokenisation CamemBERT
+  -> decoupage en chunks
+  -> classification avec CamemBERT
+  -> evaluation
+  -> explicabilite SHAP/LIME
+  -> explications locales et attention weights
+```
+
+![Pipeline global BERT](presentation/images/overview.png)
+
+## 5. Modele et entrainement
+
+### Architecture
+
+Le modele repose sur `camembert-base` avec une tete de classification binaire. Les representations contextuelles produites par CamemBERT sont envoyees vers une couche de classification qui produit deux logits : `femme` et `homme`.
+
+![Architecture du reseau](presentation/images/architecture_reseau.png)
+
+### Regimes compares
+
+Deux regimes experimentaux sont presentes :
+
+| Regime | Principe |
+| --- | --- |
+| Fine-tuning complet | Tous les parametres du modele BERT sont adaptes au dataset |
+| Linear probing | Le backbone sert d'extracteur de representations, et la classification est surtout portee par la tete lineaire |
+
+Le fine-tuning complet est plus flexible, mais plus couteux et plus sensible au surapprentissage. Le linear probing est plus contraint, mais permet d'observer si les representations pre-entrainees contiennent deja assez d'information pour la tache.
+
+### Hyperparametres principaux
+
+| Hyperparametre | Valeur |
+| --- | ---: |
+| Batch size | 32 |
+| Batch size evaluation | 32 |
+| Epochs | 5 |
+| Learning rate | 2e-5 |
+| Optimizer | AdamW |
+| Max length | 512 tokens |
+| Seed | 42 |
+
+Le script d'entrainement utilise aussi un scheduler lineaire avec warmup, du gradient clipping et la sauvegarde du meilleur modele.
+
+## 6. Resultats
+
+### Fine-tuning complet
+
+Le premier entrainement correspond a un fine-tuning complet de CamemBERT.
+
+<p align="center">
+  <img src="presentation/images/finetuning_loss.png" alt="Courbe de loss fine-tuning" width="48%">
+  <img src="presentation/images/matrice_confusion_finetuning.png" alt="Matrice de confusion fine-tuning" width="48%">
+</p>
+
+### Linear probing
+
+Le second entrainement correspond au linear probing.
+
+<p align="center">
+  <img src="presentation/images/linear_probing_loss.png" alt="Courbe de loss linear probing" width="46%">
+  <img src="presentation/images/confusion_matrix_linear_probing.png" alt="Matrice de confusion linear probing" width="46%">
+</p>
+
+Les resultats presentes pour le linear probing sont :
+
+| Classe | Precision | Recall | F1-score |
+| --- | ---: | ---: | ---: |
+| femme | 82.1% | 80.6% | 81.3% |
+| homme | 74.0% | 75.8% | 74.9% |
+| Accuracy globale |  |  | 78.6% |
+
+La courbe ROC complete l'evaluation en montrant le compromis entre vrais positifs et faux positifs.
+
+<p align="center">
+  <img src="presentation/images/roc_curve.png" alt="Courbe ROC" width="55%">
+</p>
+
+## 7. Explicabilite
+
+L'explicabilite est centree sur deux methodes :
+
+| Methode | Idee principale |
+| --- | --- |
+| SHAP | Estimer l'importance des tokens par contribution marginale au score de prediction |
+| LIME | Approximer localement le modele par un modele interpretable autour d'un exemple |
+
+Ces deux methodes sont complementaires : si elles font ressortir des indices lexicaux proches, l'explication devient plus credible que si une seule methode est utilisee.
+
+<p align="center">
+  <img src="presentation/images/SHAP.png" alt="Principe SHAP" width="44%">
+  <img src="presentation/images/LIME.png" alt="Principe LIME" width="44%">
+</p>
+
+### Explications globales SHAP
+
+Les figures suivantes presentent les termes qui soutiennent les predictions du modele pour chaque classe selon SHAP.
+
+<p align="center">
+  <img src="presentation/images/shap_top_homme_terms.png" alt="SHAP top termes homme" width="46%">
+  <img src="presentation/images/shap_top_femme_terms.png" alt="SHAP top termes femme" width="46%">
+</p>
+
+### Explications globales LIME
+
+Les figures suivantes presentent les termes qui soutiennent les predictions du modele pour chaque classe selon LIME.
+
+<p align="center">
+  <img src="presentation/images/lime_top_homme_terms.png" alt="LIME top termes homme" width="46%">
+  <img src="presentation/images/lime_top_femme_terms.png" alt="LIME top termes femme" width="46%">
+</p>
+
+### Comparaison SHAP/LIME
+
+Les termes communs entre SHAP et LIME indiquent les indices lexicaux les plus stables pour chaque classe.
+
+| Classe | Termes communs |
+| --- | --- |
+| Homme | `je`, `de`, `il`, `j` |
+| Femme | `l`, `elle`, `les`, `marie`, `suis`, `d`, `seule` |
+
+On observe une convergence partielle entre les deux methodes. Ces termes restent toutefois lies au dataset, au modele et au protocole d'entrainement.
+
+## 8. Visualisation locale et attention
+
+Les explications globales donnent une vision moyenne du comportement du modele. Les explications locales montrent, pour un texte precis, les tokens qui ont pousse la prediction dans un sens ou dans l'autre.
+
+<p align="center">
+  <img src="presentation/images/shap_local_explanation.png" alt="Explication locale SHAP" width="46%">
+  <img src="presentation/images/lime_local_explanation.png" alt="Explication locale LIME" width="46%">
+</p>
+
+Une autre visualisation utile consiste a afficher directement les scores d'attribution sur le texte.
+
+<p align="center">
+  <img src="presentation/images/text_highlight.png" alt="Scores d'attribution sur texte" width="70%">
+</p>
+
+Les poids d'attention peuvent aussi etre inspectes. Ils ne constituent pas une preuve causale d'explication, mais ils donnent une indication supplementaire sur les relations token-token auxquelles le modele accorde du poids.
+
+<p align="center">
+  <img src="presentation/images/attention_weights.png" alt="Poids d'attention" width="70%">
+</p>
+
+## 9. Scripts et commandes
+
+Les commandes ci-dessous se lancent depuis la racine du depot.
+
+### Installation
 
 ```bash
 pip install -r BERT/requirements.txt
 ```
 
-CamemBERT is downloaded from HuggingFace the first time it is used. GPU is used automatically when CUDA is available.
-
-## Dataset Format
-
-Default dataset path:
-
-```text
-data/datasetSujet3/content/dataset
-├── train/
-├── val/
-└── test/
-```
-
-Each split may contain nested `.txt` files. Labels are inferred from the existing project filename convention:
-
-- fourth parenthesized field equal to `1` means `homme`
-- fourth parenthesized field equal to `2` means `femme`
-
-As a fallback, labels can also be inferred from parent folders named `homme` or `femme`.
-
-## Chunking
-
-Texts are tokenized with the CamemBERT tokenizer. Long documents are split into non-overlapping chunks whose final encoded length is 512 tokens including special tokens. Each chunk inherits the original document label.
-
-The first chunk is skipped because it contains metadata/header information. If a document has only one chunk, that original chunk is kept so the document is not dropped. After this first-chunk rule, sampling is class-specific:
-
-- `num_chunks_homme = None` uses all remaining `homme` chunks.
-- `num_chunks_homme = N` randomly samples at most `N` remaining chunks for each `homme` document.
-- `num_chunks_femme = None` uses all remaining `femme` chunks.
-- `num_chunks_femme = N` randomly samples at most `N` remaining chunks for each `femme` document.
-
-Sampling is reproducible with the project seed.
-
-Training metrics are computed over selected chunks. Evaluation and explainability use document-level predictions by averaging probabilities over the selected chunks from the same document.
-
-## Training
+Si l'environnement conda du projet est utilise :
 
 ```bash
-python BERT/train.py --data_dir data/datasetSujet3/content/dataset
+conda activate train
+pip install -r BERT/requirements.txt
 ```
 
-Useful options:
+### Entrainement
 
 ```bash
-python BERT/train.py \
-  --batch_size 4 \
-  --eval_batch_size 8 \
-  --epochs 5 \
-  --learning_rate 2e-5 \
-  --num_chunks_homme 5 \
-  --num_chunks_femme 10 \
-  --patience 2
+python BERT/train.py --data-dir data/datasetSujet3/content/dataset --batch-size 32 --eval-batch-size 32 --epochs 5 --learning-rate 2e-5 --num-chunks-homme 64 --num-chunks-femme 32
 ```
 
-Training includes:
-
-- fixed random seeds
-- AdamW
-- linear warmup/decay scheduler
-- gradient clipping
-- early stopping on validation loss
-- per-epoch checkpoints
-- best model selection
-
-Outputs:
+Sorties principales :
 
 ```text
-BERT/artifacts/metrics.json
-BERT/outputs/logs/history.csv
 BERT/outputs/models/best_model/
-BERT/outputs/checkpoints/epoch_XX/
+BERT/outputs/checkpoints/
+BERT/outputs/logs/history.csv
+BERT/artifacts/metrics.json
 ```
 
-## Evaluation
+### Evaluation
 
 ```bash
-python BERT/evaluate.py --data_dir data/datasetSujet3/content/dataset
+python BERT/evaluate.py --data-dir data/datasetSujet3/content/dataset --model-dir BERT/outputs/models/best_model --num-chunks-homme 64 --num-chunks-femme 32
 ```
 
-Use class-specific sampled chunks:
-
-```bash
-python BERT/evaluate.py --data_dir data/datasetSujet3/content/dataset --num_chunks_homme 5 --num_chunks_femme 10
-```
-
-Computes:
-
-- accuracy
-- precision
-- recall
-- F1-score
-- confusion matrix
-- ROC-AUC
-
-Outputs:
+Sorties attendues :
 
 ```text
 BERT/artifacts/test_predictions.csv
@@ -141,85 +294,49 @@ BERT/vis/confusion_matrix.png
 BERT/vis/roc_curve.png
 ```
 
-## LIME Explanations
+### Explications SHAP
 
 ```bash
-python BERT/explain_lime.py --data_dir data/datasetSujet3/content/dataset --n_examples 50
+python BERT/explain_shap.py --data-dir data/datasetSujet3/content/dataset --model-dir BERT/outputs/models/best_model --split test --n-examples 20 --n-terms 20 --num-chunks-homme 64 --num-chunks-femme 32
 ```
 
-To explain with sampled chunks:
+### Explications LIME
 
 ```bash
-python BERT/explain_lime.py --data_dir data/datasetSujet3/content/dataset --n_examples 50 --num_chunks_homme 5 --num_chunks_femme 10
+python BERT/explain_lime.py --data-dir data/datasetSujet3/content/dataset --model-dir BERT/outputs/models/best_model --split test --n-examples 50 --n-terms 20 --num-samples 500 --num-chunks-homme 64 --num-chunks-femme 32
 ```
 
-Outputs:
+### Role des fichiers sources
+
+| Fichier | Role |
+| --- | --- |
+| `config.py` | centralise les chemins, labels et hyperparametres |
+| `data_loader.py` | charge les textes, extrait les labels, construit les chunks |
+| `model.py` | cree CamemBERT, charge le modele sauvegarde, moyenne les predictions par chunks |
+| `train.py` | entraine le modele et sauvegarde le meilleur checkpoint |
+| `evaluate.py` | calcule les metriques et les figures d'evaluation |
+| `explain_shap.py` | genere les attributions SHAP locales et globales |
+| `explain_lime.py` | genere les attributions LIME locales et globales |
+| `experiment.py` | permet de comparer plusieurs configurations experimentales |
+| `utils.py` | fonctions communes : metriques, plots, seeds, JSON |
+| `everything.ipynb` | notebook d'exploration et de consolidation des experiences |
+
+## 10. Limites
+
+- Les labels sont extraits depuis les noms de fichiers : si cette convention contient un biais, le modele peut l'apprendre indirectement.
+- Les textes longs sont decoupes en chunks : le choix du nombre de chunks par classe influence les donnees vues par le modele.
+- SHAP et LIME fournissent des approximations du comportement du modele, pas des preuves causales.
+- Les poids d'attention sont utiles pour inspecter le modele, mais ne suffisent pas a eux seuls a expliquer une decision.
+- Les termes mis en avant sont specifiques a ce dataset et a ce modele.
+
+## Conclusion
+
+L'approche BERT/CamemBERT fournit un classifieur plus contextuel qu'une representation TF-IDF classique. Les resultats montrent que le modele apprend des signaux utiles pour distinguer les deux classes, et les methodes SHAP/LIME permettent d'inspecter les tokens qui influencent ses decisions.
+
+Le projet montre donc une chaine complete :
 
 ```text
-BERT/artifacts/lime_results.csv
-BERT/vis/lime_local_explanation.html
-BERT/vis/lime_top_femme_terms.png
-BERT/vis/lime_top_homme_terms.png
+classification -> evaluation -> explicabilite globale -> explicabilite locale -> interpretation critique
 ```
 
-LIME calls the same document-level prediction function used in evaluation, including 512-token chunking and probability averaging.
-
-## SHAP Explanations
-
-```bash
-python BERT/explain_shap.py --data_dir data/datasetSujet3/content/dataset --n_examples 20
-```
-
-To explain with sampled chunks:
-
-```bash
-python BERT/explain_shap.py --data_dir data/datasetSujet3/content/dataset --n_examples 20 --num_chunks_homme 5 --num_chunks_femme 10
-```
-
-Outputs:
-
-```text
-BERT/artifacts/shap_global.csv
-BERT/artifacts/shap_local.csv
-BERT/vis/shap_summary.png
-BERT/vis/shap_local_explanation.png
-```
-
-SHAP uses a HuggingFace-compatible tokenizer masker and the same chunk-aware predictor used by the rest of the pipeline.
-
-## Experiments
-
-The experiment runner compares model variants and explainability methods using a plugin registry.
-
-Raw pretrained CamemBERT with LIME:
-
-```bash
-python BERT/experiment.py --model pretrained --method lime
-```
-
-Fine-tuned CamemBERT with SHAP:
-
-```bash
-python BERT/experiment.py --model finetuned --method shap
-```
-
-Experiment rows are appended to:
-
-```text
-BERT/artifacts/experiment_results.csv
-```
-
-Columns include:
-
-- model type
-- explainability method
-- predicted label
-- confidence
-- important tokens
-- explanation scores
-
-Future methods such as Integrated Gradients, LRP, attention rollout, or Captum methods can be added by implementing a new `ExplanationPlugin` and registering it in `PLUGIN_REGISTRY`.
-
-## Notes
-
-The explainability outputs describe what the trained classifier learned from this dataset. They should not be interpreted as universal rules about male or female writing.
+Cette lecture reste volontairement limitee au comportement du classifieur sur ce dataset.
